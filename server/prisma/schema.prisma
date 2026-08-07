@@ -1,0 +1,237 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  SUPERADMIN
+  ADMIN
+  USER
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum ShopStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum CarType {
+  SEDAN
+  SUV
+  TRUCK
+  VAN
+  COUPE
+  CONVERTIBLE
+  HATCHBACK
+  MINIVAN
+  LUXURY
+  OTHER
+}
+
+enum CarStatus {
+  AVAILABLE
+  RENTED
+  MAINTENANCE
+  INACTIVE
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum BookingSource {
+  ONLINE
+  WALK_IN
+}
+
+model User {
+  id           String     @id @default(cuid())
+  name         String
+  email        String     @unique
+  phone        String?
+  passwordHash String
+  role         Role       @default(USER)
+  status       UserStatus @default(ACTIVE)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  shop            Shop?
+  bookings        Booking[]      @relation("RenterBookings")
+  createdBookings Booking[]      @relation("BookingCreator")
+  favorites       Favorite[]
+  conversations   Conversation[]
+  messages        Message[]
+  refreshTokens   RefreshToken[]
+  auditLogs       AuditLog[]
+
+  @@index([role])
+}
+
+model RefreshToken {
+  id                String    @id @default(cuid())
+  userId            String
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash         String    @unique
+  expiresAt         DateTime
+  revokedAt         DateTime?
+  replacedByTokenId String?
+  createdAt         DateTime  @default(now())
+
+  @@index([userId])
+}
+
+model Shop {
+  id          String     @id @default(cuid())
+  ownerId     String     @unique
+  owner       User       @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  address     String?
+  phone       String?
+  logoUrl     String?
+  status      ShopStatus @default(ACTIVE)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  cars          Car[]
+  bookings      Booking[]
+  conversations Conversation[]
+}
+
+model CarBrand {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+
+  cars Car[]
+}
+
+model Car {
+  id               String    @id @default(cuid())
+  shopId           String
+  shop             Shop      @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  brandId          String
+  brand            CarBrand  @relation(fields: [brandId], references: [id])
+  type             CarType
+  model            String
+  year             Int
+  pricePerDay      Decimal   @db.Decimal(10, 2)
+  minRentalDays    Int       @default(1)
+  extraFees        Decimal?  @db.Decimal(10, 2)
+  description      String?
+  isBookableOnline Boolean   @default(true)
+  status           CarStatus @default(AVAILABLE)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  images    CarImage[]
+  bookings  Booking[]
+  favorites Favorite[]
+
+  @@index([shopId])
+  @@index([shopId, type])
+  @@index([shopId, brandId])
+  @@index([shopId, status])
+}
+
+model CarImage {
+  id       String @id @default(cuid())
+  carId    String
+  car      Car    @relation(fields: [carId], references: [id], onDelete: Cascade)
+  url      String
+  position Int    @default(0)
+
+  createdAt DateTime @default(now())
+
+  @@index([carId])
+}
+
+model Booking {
+  id                        String        @id @default(cuid())
+  carId                     String
+  car                       Car           @relation(fields: [carId], references: [id])
+  shopId                    String
+  shop                      Shop          @relation(fields: [shopId], references: [id])
+  renterUserId              String?
+  renterUser                User?         @relation("RenterBookings", fields: [renterUserId], references: [id])
+  walkInRenterName          String?
+  walkInRenterPhone         String?
+  walkInRenterLicenseNumber String?
+  startDate                 DateTime
+  endDate                   DateTime
+  totalPrice                Decimal       @db.Decimal(10, 2)
+  status                    BookingStatus @default(PENDING)
+  source                    BookingSource
+  createdByUserId           String
+  createdBy                 User          @relation("BookingCreator", fields: [createdByUserId], references: [id])
+  createdAt                 DateTime      @default(now())
+  updatedAt                 DateTime      @updatedAt
+
+  @@index([shopId])
+  @@index([carId])
+  @@index([renterUserId])
+  @@index([shopId, status])
+}
+
+model Favorite {
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  carId     String
+  car       Car      @relation(fields: [carId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([userId, carId])
+}
+
+model Conversation {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shopId    String
+  shop      Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  messages Message[]
+
+  @@unique([userId, shopId])
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId       String
+  sender         User         @relation(fields: [senderId], references: [id])
+  body           String
+  readAt         DateTime?
+  createdAt      DateTime     @default(now())
+
+  @@index([conversationId, createdAt])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String
+  actor      User     @relation(fields: [actorId], references: [id])
+  action     String
+  targetType String
+  targetId   String
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([actorId])
+  @@index([targetType, targetId])
+}
