@@ -140,7 +140,7 @@ export function AuthPanel() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" noValidate>
           {authMode === "signup" && (
             <div className="space-y-2">
               <Label htmlFor="name">Name</Label>
