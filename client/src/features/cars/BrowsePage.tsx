@@ -1,13 +1,17 @@
 import { useCallback, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { useSearchParams } from "react-router";
 import { CarFront, Heart, MessageSquare, Star } from "lucide-react";
+import { z } from "zod";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { formatMoney, getApiMessage } from "@/lib/format";
 import { useSession } from "@/features/auth/useSession";
 import { CAR_TYPES } from "@/features/cars/constants";
 import type { Brand, Car } from "@/types";
+import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,6 +27,23 @@ type CarFilters = {
   isBookableOnline: string;
 };
 
+const bookingFormSchema = z
+  .object({
+    startDate: z.string().min(1, "Start date is required"),
+    endDate: z.string().min(1, "End date is required"),
+  })
+  .superRefine((data, ctx) => {
+    if (data.startDate && data.endDate && data.endDate <= data.startDate) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["endDate"],
+        message: "endDate must be after startDate",
+      });
+    }
+  });
+
+type BookingFormValues = z.infer<typeof bookingFormSchema>;
+
 export function BrowsePage() {
   const { session } = useSession();
   const queryClient = useQueryClient();
@@ -34,8 +55,11 @@ export function BrowsePage() {
     type: "",
     isBookableOnline: "",
   });
-  const [bookingDraft, setBookingDraft] = useState({ startDate: "", endDate: "" });
   const [conversationDraft, setConversationDraft] = useState("");
+  const bookingForm = useForm<BookingFormValues>({
+    resolver: zodResolver(bookingFormSchema),
+    defaultValues: { startDate: "", endDate: "" },
+  });
 
   const brandsQuery = useQuery({
     queryKey: ["brands"],
@@ -83,19 +107,23 @@ export function BrowsePage() {
   });
 
   const bookingMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (values: BookingFormValues) => {
       if (!selectedCarId) throw new Error("Choose a car first");
       return api.createBooking(session.token!, {
         carId: selectedCarId,
-        startDate: `${bookingDraft.startDate}T10:00:00.000Z`,
-        endDate: `${bookingDraft.endDate}T10:00:00.000Z`,
+        startDate: `${values.startDate}T10:00:00.000Z`,
+        endDate: `${values.endDate}T10:00:00.000Z`,
       });
     },
     onSuccess: () => {
-      setBookingDraft({ startDate: "", endDate: "" });
+      bookingForm.reset({ startDate: "", endDate: "" });
       void queryClient.invalidateQueries({ queryKey: ["my-bookings"] });
     },
   });
+
+  function onSubmitBooking(values: BookingFormValues) {
+    bookingMutation.mutate(values);
+  }
 
   const createConversationMutation = useMutation({
     mutationFn: async (shopId: string) => {
@@ -272,40 +300,38 @@ export function BrowsePage() {
                     {selectedCar.isBookableOnline && canBook && (
                       <div className="space-y-3 rounded-lg border border-border p-4">
                         <p className="text-sm font-medium">Create booking</p>
-                        <div className="grid gap-3 sm:grid-cols-2">
-                          <div className="space-y-2">
-                            <Label htmlFor="startDate">Start date</Label>
-                            <Input
-                              id="startDate"
-                              type="date"
-                              value={bookingDraft.startDate}
-                              onChange={(event) =>
-                                setBookingDraft({ ...bookingDraft, startDate: event.target.value })
-                              }
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="endDate">End date</Label>
-                            <Input
-                              id="endDate"
-                              type="date"
-                              value={bookingDraft.endDate}
-                              onChange={(event) =>
-                                setBookingDraft({ ...bookingDraft, endDate: event.target.value })
-                              }
-                            />
-                          </div>
-                        </div>
-                        <Button
-                          className="w-full"
-                          onClick={() => bookingMutation.mutate()}
-                          disabled={bookingMutation.isPending || !bookingDraft.startDate || !bookingDraft.endDate}
+                        <form
+                          onSubmit={bookingForm.handleSubmit(onSubmitBooking)}
+                          className="space-y-3"
+                          noValidate
                         >
-                          Book this car
-                        </Button>
-                        {bookingMutation.error && (
-                          <p className="text-sm text-destructive">{getApiMessage(bookingMutation.error)}</p>
-                        )}
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <div className="space-y-2">
+                              <Label htmlFor="startDate">Start date</Label>
+                              <Input id="startDate" type="date" {...bookingForm.register("startDate")} />
+                              {bookingForm.formState.errors.startDate && (
+                                <p className="text-sm text-destructive">
+                                  {bookingForm.formState.errors.startDate.message}
+                                </p>
+                              )}
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="endDate">End date</Label>
+                              <Input id="endDate" type="date" {...bookingForm.register("endDate")} />
+                              {bookingForm.formState.errors.endDate && (
+                                <p className="text-sm text-destructive">
+                                  {bookingForm.formState.errors.endDate.message}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          <Button className="w-full" type="submit" disabled={bookingMutation.isPending}>
+                            Book this car
+                          </Button>
+                          {bookingMutation.error && (
+                            <Alert variant="destructive">{getApiMessage(bookingMutation.error)}</Alert>
+                          )}
+                        </form>
                       </div>
                     )}
 
