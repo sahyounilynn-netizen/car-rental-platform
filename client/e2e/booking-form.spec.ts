@@ -1,3 +1,5 @@
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import path from "node:path";
 import { expect, request as pwRequest, test } from "@playwright/test";
 import type { APIRequestContext, Page } from "@playwright/test";
 
@@ -81,14 +83,45 @@ function toISODate(date: Date) {
   return date.toISOString().slice(0, 10);
 }
 
-// Spreads bookings across a wide, seed-varying future window so repeated
-// runs (or re-runs in the same session) never collide with a prior run's
-// booking and trip the server's overlap check.
-function futureDateRange(seed: number) {
-  const startOffsetDays = 30 + (seed % 300);
-  const start = toISODate(new Date(Date.now() + startOffsetDays * 86400000));
-  const end = toISODate(new Date(Date.now() + (startOffsetDays + 2) * 86400000));
-  return { start, end };
+// The bookings API has no cancel/delete endpoint reachable with a plain
+// USER token (PATCH /:bookingId/status requires ADMIN + ownership of the
+// car's shop, which this suite intentionally doesn't have — see
+// getOrCreateBookableCar above), so leftover bookings from earlier runs
+// can't be cleaned up. The date window instead needs to be strictly unique
+// per invocation.
+//
+// A pure wall-clock derivation (e.g. elapsed seconds since a fixed anchor,
+// used directly as a day offset) was tried and rejected: any granularity
+// fine enough to avoid same-session collisions (runs a few tens of seconds
+// apart) grows the offset fast enough that, over weeks of real usage
+// against this same persistent dev DB, it blows past year 9999 — at which
+// point `toISOString()` switches to ISO-8601's extended year format
+// ("+054467-11-DD"), which HTML `<input type="date">` rejects outright.
+// Confirmed by hitting exactly that failure.
+//
+// A persisted counter avoids the tradeoff entirely: each invocation gets a
+// day strictly greater than every prior invocation's, regardless of how
+// much (or how little) real time elapsed between them, so the growth rate
+// is bounded by *number of test runs* rather than wall-clock time — even
+// tens of thousands of runs stay within a few decades of today.
+const OFFSET_FILE = path.join(import.meta.dirname, ".booking-date-offset.txt");
+const BASE_OFFSET_DAYS = 1000; // ~2.7 years out — comfortably clear of the old buggy [30, 329]-day fixture range
+
+function nextOffsetDays(): number {
+  let current = BASE_OFFSET_DAYS;
+  if (existsSync(OFFSET_FILE)) {
+    const stored = Number.parseInt(readFileSync(OFFSET_FILE, "utf8").trim(), 10);
+    if (Number.isFinite(stored)) current = stored;
+  }
+  const next = current + 3; // > the 2-day booking span, so consecutive windows never touch
+  writeFileSync(OFFSET_FILE, String(next));
+  return next;
+}
+
+function futureDateRange() {
+  const start = new Date(Date.now() + nextOffsetDays() * 86400000);
+  const end = new Date(start.getTime() + 2 * 86400000);
+  return { start: toISODate(start), end: toISODate(end) };
 }
 
 let userToken: string;
@@ -119,7 +152,7 @@ test.describe("Booking form", () => {
     request,
   }) => {
     await gotoBookingForm(page);
-    const { start, end } = futureDateRange(Date.now());
+    const { start, end } = futureDateRange();
 
     await page.getByLabel("Start date").fill(start);
     await page.getByLabel("End date").fill(end);
@@ -146,7 +179,7 @@ test.describe("Booking form", () => {
 
   test("invalid date range shows a validation error and fires no request", async ({ page }) => {
     await gotoBookingForm(page);
-    const { start } = futureDateRange(Date.now());
+    const { start } = futureDateRange();
 
     let bookingRequestFired = false;
     page.on("request", (req) => {

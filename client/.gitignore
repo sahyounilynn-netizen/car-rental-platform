@@ -17,6 +17,7 @@ dist-ssr
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+e2e/.booking-date-offset.txt
 
 # Editor directories and files
 .vscode/*
