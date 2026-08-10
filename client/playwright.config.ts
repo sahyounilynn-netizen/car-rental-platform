@@ -12,6 +12,14 @@ export default defineConfig({
   testDir: "./e2e",
   timeout: 30_000,
   fullyParallel: false,
+  // Auth/booking specs create real accounts against the dev server's
+  // 5-signups-per-15-minutes rate limiter (server/src/middlewares/
+  // rateLimit.ts). fullyParallel:false only serializes tests *within* a
+  // file — across files Playwright still assigned multiple workers, so
+  // both suites' signups could race each other and blow the budget faster
+  // than running strictly one-at-a-time. Pinning to a single worker fixes
+  // that without touching the rate limiter itself.
+  workers: 1,
   retries: 0,
   reporter: [["list"], ["html", { open: "never", outputFolder: "playwright-report" }]],
   use: {
