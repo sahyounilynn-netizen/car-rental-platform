@@ -1,16 +1,58 @@
-import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { api } from "@/lib/api";
 import { formatMoney, getApiMessage } from "@/lib/format";
 import { useSession } from "@/features/auth/useSession";
 import { CAR_TYPES } from "@/features/cars/constants";
+import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 
-const INITIAL_INVENTORY_DRAFT = {
+// Mirrors server/src/modules/cars/cars.validators.ts createCarSchema exactly
+// (checked directly, not assumed): same field rules and messages where the
+// server defines one, same zod primitives reused where possible (imageUrls
+// below) so the max-count/per-URL messages are byte-identical without
+// hardcoding them.
+const CURRENT_YEAR = new Date().getFullYear() + 1;
+const imageUrlSchema = z.string().trim().url("Image URL must be a valid URL");
+const imageUrlsArraySchema = z.array(imageUrlSchema).max(10);
+
+const inventoryFormSchema = z
+  .object({
+    brandId: z.string().trim().min(1, "brandId is required"),
+    type: z.enum(CAR_TYPES),
+    model: z.string().trim().min(1, "Model is required").max(100),
+    year: z.coerce.number().int().min(1990).max(CURRENT_YEAR),
+    pricePerDay: z.coerce.number().positive("pricePerDay must be greater than 0"),
+    minRentalDays: z.coerce.number().int().min(1),
+    extraFees: z.coerce.number().min(0),
+    description: z.string().trim().max(2000),
+    isBookableOnline: z.boolean(),
+    imageUrls: z.string(),
+  })
+  .superRefine((data, ctx) => {
+    const urls = data.imageUrls
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+    const result = imageUrlsArraySchema.safeParse(urls);
+    if (!result.success) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["imageUrls"],
+        message: result.error.issues[0]?.message ?? "Invalid image URLs",
+      });
+    }
+  });
+
+type InventoryFormValues = z.infer<typeof inventoryFormSchema>;
+
+const INITIAL_INVENTORY_VALUES: InventoryFormValues = {
   brandId: "",
   type: "SUV",
   model: "",
@@ -26,7 +68,11 @@ const INITIAL_INVENTORY_DRAFT = {
 export function InventoryPage() {
   const { session } = useSession();
   const queryClient = useQueryClient();
-  const [inventoryDraft, setInventoryDraft] = useState(INITIAL_INVENTORY_DRAFT);
+
+  const inventoryForm = useForm<InventoryFormValues>({
+    resolver: zodResolver(inventoryFormSchema),
+    defaultValues: INITIAL_INVENTORY_VALUES,
+  });
 
   const brandsQuery = useQuery({
     queryKey: ["brands"],
@@ -47,27 +93,24 @@ export function InventoryPage() {
   });
 
   const createCarMutation = useMutation({
-    mutationFn: async () =>
+    mutationFn: async (values: InventoryFormValues) =>
       api.createCar(session.token!, {
-        brandId: inventoryDraft.brandId,
-        type: inventoryDraft.type,
-        model: inventoryDraft.model,
-        year: Number(inventoryDraft.year),
-        pricePerDay: Number(inventoryDraft.pricePerDay),
-        minRentalDays: Number(inventoryDraft.minRentalDays),
-        extraFees: Number(inventoryDraft.extraFees) || undefined,
-        description: inventoryDraft.description || undefined,
-        isBookableOnline: inventoryDraft.isBookableOnline,
-        imageUrls: inventoryDraft.imageUrls
+        brandId: values.brandId,
+        type: values.type,
+        model: values.model,
+        year: values.year,
+        pricePerDay: values.pricePerDay,
+        minRentalDays: values.minRentalDays,
+        extraFees: values.extraFees || undefined,
+        description: values.description || undefined,
+        isBookableOnline: values.isBookableOnline,
+        imageUrls: values.imageUrls
           .split("\n")
           .map((line) => line.trim())
           .filter(Boolean),
       }),
-    onSuccess: () => {
-      setInventoryDraft({
-        ...INITIAL_INVENTORY_DRAFT,
-        brandId: inventoryDraft.brandId,
-      });
+    onSuccess: (_result, values) => {
+      inventoryForm.reset({ ...INITIAL_INVENTORY_VALUES, brandId: values.brandId });
       void queryClient.invalidateQueries({ queryKey: ["inventory"] });
       void queryClient.invalidateQueries({ queryKey: ["cars"] });
     },
@@ -81,6 +124,10 @@ export function InventoryPage() {
     },
   });
 
+  function onSubmit(values: InventoryFormValues) {
+    createCarMutation.mutate(values);
+  }
+
   return (
     <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
       <Card>
@@ -88,96 +135,77 @@ export function InventoryPage() {
           <CardTitle>Add inventory</CardTitle>
           <CardDescription>Create a car listing for your shop using the live admin API.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3">
-          <Select
-            value={inventoryDraft.brandId}
-            onChange={(event) => setInventoryDraft({ ...inventoryDraft, brandId: event.target.value })}
-          >
-            <option value="">Select brand</option>
-            {(brandsQuery.data ?? []).map((brand) => (
-              <option key={brand.id} value={brand.id}>
-                {brand.name}
-              </option>
-            ))}
-          </Select>
-          <Select value={inventoryDraft.type} onChange={(event) => setInventoryDraft({ ...inventoryDraft, type: event.target.value })}>
-            {CAR_TYPES.map((type) => (
-              <option key={type} value={type}>
-                {type}
-              </option>
-            ))}
-          </Select>
-          <Input
-            placeholder="Model"
-            value={inventoryDraft.model}
-            onChange={(event) => setInventoryDraft({ ...inventoryDraft, model: event.target.value })}
-          />
-          <div className="grid grid-cols-2 gap-3">
-            <Input
-              type="number"
-              placeholder="Year"
-              value={String(inventoryDraft.year)}
-              onChange={(event) =>
-                setInventoryDraft({ ...inventoryDraft, year: Number(event.target.value) })
-              }
-            />
-            <Input
-              type="number"
-              placeholder="Price/day"
-              value={String(inventoryDraft.pricePerDay)}
-              onChange={(event) =>
-                setInventoryDraft({ ...inventoryDraft, pricePerDay: Number(event.target.value) })
-              }
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <Input
-              type="number"
-              placeholder="Minimum rental days"
-              value={String(inventoryDraft.minRentalDays)}
-              onChange={(event) =>
-                setInventoryDraft({ ...inventoryDraft, minRentalDays: Number(event.target.value) })
-              }
-            />
-            <Input
-              type="number"
-              placeholder="Extra fees"
-              value={String(inventoryDraft.extraFees)}
-              onChange={(event) =>
-                setInventoryDraft({ ...inventoryDraft, extraFees: Number(event.target.value) })
-              }
-            />
-          </div>
-          <Textarea
-            placeholder="Description"
-            value={inventoryDraft.description}
-            onChange={(event) => setInventoryDraft({ ...inventoryDraft, description: event.target.value })}
-          />
-          <Textarea
-            placeholder="Image URLs, one per line"
-            value={inventoryDraft.imageUrls}
-            onChange={(event) => setInventoryDraft({ ...inventoryDraft, imageUrls: event.target.value })}
-          />
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={inventoryDraft.isBookableOnline}
-              onChange={(event) =>
-                setInventoryDraft({ ...inventoryDraft, isBookableOnline: event.target.checked })
-              }
-            />
-            Available for online booking
-          </label>
-          <Button
-            className="w-full"
-            onClick={() => createCarMutation.mutate()}
-            disabled={createCarMutation.isPending || !inventoryDraft.brandId || !inventoryDraft.model}
-          >
-            Add car
-          </Button>
-          {createCarMutation.error && (
-            <p className="text-sm text-destructive">{getApiMessage(createCarMutation.error)}</p>
-          )}
+        <CardContent>
+          <form onSubmit={inventoryForm.handleSubmit(onSubmit)} className="space-y-3" noValidate>
+            <Select aria-label="Brand" {...inventoryForm.register("brandId")}>
+              <option value="">Select brand</option>
+              {(brandsQuery.data ?? []).map((brand) => (
+                <option key={brand.id} value={brand.id}>
+                  {brand.name}
+                </option>
+              ))}
+            </Select>
+            {inventoryForm.formState.errors.brandId && (
+              <p className="text-sm text-destructive">{inventoryForm.formState.errors.brandId.message}</p>
+            )}
+            <Select aria-label="Car type" {...inventoryForm.register("type")}>
+              {CAR_TYPES.map((type) => (
+                <option key={type} value={type}>
+                  {type}
+                </option>
+              ))}
+            </Select>
+            <Input placeholder="Model" {...inventoryForm.register("model")} />
+            {inventoryForm.formState.errors.model && (
+              <p className="text-sm text-destructive">{inventoryForm.formState.errors.model.message}</p>
+            )}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Input type="number" placeholder="Year" {...inventoryForm.register("year")} />
+                {inventoryForm.formState.errors.year && (
+                  <p className="text-sm text-destructive">{inventoryForm.formState.errors.year.message}</p>
+                )}
+              </div>
+              <div className="space-y-1">
+                <Input type="number" placeholder="Price/day" {...inventoryForm.register("pricePerDay")} />
+                {inventoryForm.formState.errors.pricePerDay && (
+                  <p className="text-sm text-destructive">{inventoryForm.formState.errors.pricePerDay.message}</p>
+                )}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Input type="number" placeholder="Minimum rental days" {...inventoryForm.register("minRentalDays")} />
+                {inventoryForm.formState.errors.minRentalDays && (
+                  <p className="text-sm text-destructive">{inventoryForm.formState.errors.minRentalDays.message}</p>
+                )}
+              </div>
+              <div className="space-y-1">
+                <Input type="number" placeholder="Extra fees" {...inventoryForm.register("extraFees")} />
+                {inventoryForm.formState.errors.extraFees && (
+                  <p className="text-sm text-destructive">{inventoryForm.formState.errors.extraFees.message}</p>
+                )}
+              </div>
+            </div>
+            <Textarea placeholder="Description" {...inventoryForm.register("description")} />
+            {inventoryForm.formState.errors.description && (
+              <p className="text-sm text-destructive">{inventoryForm.formState.errors.description.message}</p>
+            )}
+            <Textarea placeholder="Image URLs, one per line" {...inventoryForm.register("imageUrls")} />
+            {inventoryForm.formState.errors.imageUrls && (
+              <p className="text-sm text-destructive">{inventoryForm.formState.errors.imageUrls.message}</p>
+            )}
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" {...inventoryForm.register("isBookableOnline")} />
+              Available for online booking
+            </label>
+            <Button className="w-full" type="submit" disabled={createCarMutation.isPending}>
+              Add car
+            </Button>
+            {createCarMutation.error && (
+              <Alert variant="destructive">{getApiMessage(createCarMutation.error)}</Alert>
+            )}
+          </form>
         </CardContent>
       </Card>
 
