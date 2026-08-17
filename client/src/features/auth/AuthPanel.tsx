@@ -130,9 +130,9 @@ export function AuthPanel() {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">{authMode === "login" ? "Login" : "Create account"}</CardTitle>
+    <Card className="rounded-[24px]">
+      <CardHeader className="border-b border-border/80">
+        <CardTitle className="text-xl">{authMode === "login" ? "Welcome back" : "Create your account"}</CardTitle>
         <CardDescription>
           {authMode === "login"
             ? "Sign in to save favorites, place bookings, or manage a shop."
@@ -140,11 +140,11 @@ export function AuthPanel() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" noValidate>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5 pt-1" noValidate>
           {authMode === "signup" && (
             <div className="space-y-2">
               <Label htmlFor="name">Name</Label>
-              <Input id="name" {...form.register("name")} />
+              <Input id="name" placeholder="Enter your full name" {...form.register("name")} />
               {form.formState.errors.name && (
                 <p className="text-sm text-destructive">{form.formState.errors.name.message}</p>
               )}
@@ -152,14 +152,14 @@ export function AuthPanel() {
           )}
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
-            <Input id="email" type="email" {...form.register("email")} />
+            <Input id="email" type="email" placeholder="you@example.com" {...form.register("email")} />
             {form.formState.errors.email && (
               <p className="text-sm text-destructive">{form.formState.errors.email.message}</p>
             )}
           </div>
           <div className="space-y-2">
             <Label htmlFor="password">Password</Label>
-            <Input id="password" type="password" {...form.register("password")} />
+            <Input id="password" type="password" placeholder="Enter your password" {...form.register("password")} />
             {form.formState.errors.password && (
               <p className="text-sm text-destructive">{form.formState.errors.password.message}</p>
             )}
@@ -168,19 +168,19 @@ export function AuthPanel() {
             <>
               <div className="space-y-2">
                 <Label htmlFor="phone">Phone</Label>
-                <Input id="phone" {...form.register("phone")} />
+                <Input id="phone" placeholder="+1 555 123 4567" {...form.register("phone")} />
                 {form.formState.errors.phone && (
                   <p className="text-sm text-destructive">{form.formState.errors.phone.message}</p>
                 )}
               </div>
-              <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" {...form.register("asShop")} />
+              <label className="surface-muted flex items-center gap-3 rounded-xl px-4 py-3 text-sm text-slate-700">
+                <input className="h-4 w-4 accent-blue-600" type="checkbox" {...form.register("asShop")} />
                 Sign up as a shop admin
               </label>
               {asShop && (
                 <div className="space-y-2">
                   <Label htmlFor="shopName">Shop name</Label>
-                  <Input id="shopName" {...form.register("shopName")} />
+                  <Input id="shopName" placeholder="Enter your rental shop name" {...form.register("shopName")} />
                   {form.formState.errors.shopName && (
                     <p className="text-sm text-destructive">{form.formState.errors.shopName.message}</p>
                   )}
@@ -193,7 +193,7 @@ export function AuthPanel() {
             {authenticateMutation.isPending ? "Working..." : authMode === "login" ? "Login" : "Create account"}
           </Button>
           <Button
-            variant="ghost"
+            variant="outline"
             className="w-full"
             type="button"
             onClick={() => {

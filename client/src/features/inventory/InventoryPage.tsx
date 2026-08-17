@@ -1,9 +1,6 @@
 import { useState } from "react";
-import {
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { CarFront, PencilLine } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -14,59 +11,28 @@ import { CAR_TYPES } from "@/features/cars/constants";
 import type { Car } from "@/types";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { PageIntro } from "@/components/ui/page-intro";
 import { Select } from "@/components/ui/select";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Textarea } from "@/components/ui/textarea";
 
 const CURRENT_YEAR = new Date().getFullYear() + 1;
-
-const imageUrlSchema = z
-  .string()
-  .trim()
-  .url("Image URL must be a valid URL");
-
-const imageUrlsArraySchema = z
-  .array(imageUrlSchema)
-  .max(10);
+const imageUrlSchema = z.string().trim().url("Image URL must be a valid URL");
+const imageUrlsArraySchema = z.array(imageUrlSchema).max(10);
 
 const inventoryFormSchema = z
   .object({
-    brandId: z
-      .string()
-      .trim()
-      .min(1, "Brand is required"),
+    brandId: z.string().trim().min(1, "Brand is required"),
     type: z.enum(CAR_TYPES),
-    model: z
-      .string()
-      .trim()
-      .min(1, "Model is required")
-      .max(100),
-    year: z.coerce
-      .number()
-      .int()
-      .min(1990)
-      .max(CURRENT_YEAR),
-    pricePerDay: z.coerce
-      .number()
-      .positive("Price per day must be greater than 0"),
-    minRentalDays: z.coerce
-      .number()
-      .int()
-      .min(1),
-    extraFees: z.coerce
-      .number()
-      .min(0),
-    description: z
-      .string()
-      .trim()
-      .max(2000),
+    model: z.string().trim().min(1, "Model is required").max(100),
+    year: z.coerce.number().int().min(1990).max(CURRENT_YEAR),
+    pricePerDay: z.coerce.number().positive("Price per day must be greater than 0"),
+    minRentalDays: z.coerce.number().int().min(1),
+    extraFees: z.coerce.number().min(0),
+    description: z.string().trim().max(2000),
     isBookableOnline: z.boolean(),
     imageUrls: z.string(),
   })
@@ -82,16 +48,12 @@ const inventoryFormSchema = z
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["imageUrls"],
-        message:
-          result.error.issues[0]?.message ??
-          "Invalid image URLs",
+        message: result.error.issues[0]?.message ?? "Invalid image URLs",
       });
     }
   });
 
-type InventoryFormValues = z.infer<
-  typeof inventoryFormSchema
->;
+type InventoryFormValues = z.infer<typeof inventoryFormSchema>;
 
 const INITIAL_INVENTORY_VALUES: InventoryFormValues = {
   brandId: "",
@@ -113,9 +75,7 @@ function getImageUrls(values: InventoryFormValues) {
     .filter(Boolean);
 }
 
-function carToFormValues(
-  car: Car,
-): InventoryFormValues {
+function carToFormValues(car: Car): InventoryFormValues {
   return {
     brandId: car.brandId,
     type: car.type as InventoryFormValues["type"],
@@ -126,61 +86,42 @@ function carToFormValues(
     extraFees: car.extraFees ?? 0,
     description: car.description ?? "",
     isBookableOnline: car.isBookableOnline,
-    imageUrls: car.images
-      .map((image) => image.url)
-      .join("\n"),
+    imageUrls: car.images.map((image) => image.url).join("\n"),
   };
 }
 
 export function InventoryPage() {
   const { session } = useSession();
   const queryClient = useQueryClient();
-
-  const [editingCarId, setEditingCarId] =
-    useState<string | null>(null);
-
+  const [editingCarId, setEditingCarId] = useState<string | null>(null);
   const isEditing = editingCarId !== null;
 
-  const inventoryForm =
-    useForm<InventoryFormValues>({
-      resolver: zodResolver(inventoryFormSchema),
-      defaultValues: INITIAL_INVENTORY_VALUES,
-    });
+  const inventoryForm = useForm<InventoryFormValues>({
+    resolver: zodResolver(inventoryFormSchema),
+    defaultValues: INITIAL_INVENTORY_VALUES,
+  });
 
   const brandsQuery = useQuery({
     queryKey: ["brands"],
-    queryFn: async () =>
-      (await api.listCarBrands()).brands,
+    queryFn: async () => (await api.listCarBrands()).brands,
   });
 
   const inventoryQuery = useQuery({
-    queryKey: [
-      "inventory",
-      session.user?.shop?.id,
-    ],
+    queryKey: ["inventory", session.user?.shop?.id],
     queryFn: async () => {
       const params = new URLSearchParams({
         shopId: session.user!.shop!.id,
         page: "1",
         limit: "20",
       });
-
       return api.listCars(params);
     },
-    enabled: Boolean(
-      session.user?.role === "ADMIN" &&
-        session.user.shop?.id,
-    ),
+    enabled: Boolean(session.user?.role === "ADMIN" && session.user.shop?.id),
   });
 
   function invalidateCarQueries() {
-    void queryClient.invalidateQueries({
-      queryKey: ["inventory"],
-    });
-
-    void queryClient.invalidateQueries({
-      queryKey: ["cars"],
-    });
+    void queryClient.invalidateQueries({ queryKey: ["inventory"] });
+    void queryClient.invalidateQueries({ queryKey: ["cars"] });
   }
 
   function resetForm() {
@@ -189,9 +130,7 @@ export function InventoryPage() {
   }
 
   const createCarMutation = useMutation({
-    mutationFn: async (
-      values: InventoryFormValues,
-    ) =>
+    mutationFn: async (values: InventoryFormValues) =>
       api.createCar(session.token!, {
         brandId: values.brandId,
         type: values.type,
@@ -199,54 +138,31 @@ export function InventoryPage() {
         year: values.year,
         pricePerDay: values.pricePerDay,
         minRentalDays: values.minRentalDays,
-        extraFees:
-          values.extraFees === 0
-            ? undefined
-            : values.extraFees,
-        description:
-          values.description || undefined,
-        isBookableOnline:
-          values.isBookableOnline,
+        extraFees: values.extraFees === 0 ? undefined : values.extraFees,
+        description: values.description || undefined,
+        isBookableOnline: values.isBookableOnline,
         imageUrls: getImageUrls(values),
       }),
-
     onSuccess: (_result, values) => {
-      inventoryForm.reset({
-        ...INITIAL_INVENTORY_VALUES,
-        brandId: values.brandId,
-      });
-
+      inventoryForm.reset({ ...INITIAL_INVENTORY_VALUES, brandId: values.brandId });
       invalidateCarQueries();
     },
   });
 
   const updateCarMutation = useMutation({
-    mutationFn: async ({
-      carId,
-      values,
-    }: {
-      carId: string;
-      values: InventoryFormValues;
-    }) =>
-      api.updateCar(
-        session.token!,
-        carId,
-        {
-          brandId: values.brandId,
-          type: values.type,
-          model: values.model,
-          year: values.year,
-          pricePerDay: values.pricePerDay,
-          minRentalDays: values.minRentalDays,
-          extraFees: values.extraFees,
-          description:
-            values.description || null,
-          isBookableOnline:
-            values.isBookableOnline,
-          imageUrls: getImageUrls(values),
-        },
-      ),
-
+    mutationFn: async ({ carId, values }: { carId: string; values: InventoryFormValues }) =>
+      api.updateCar(session.token!, carId, {
+        brandId: values.brandId,
+        type: values.type,
+        model: values.model,
+        year: values.year,
+        pricePerDay: values.pricePerDay,
+        minRentalDays: values.minRentalDays,
+        extraFees: values.extraFees,
+        description: values.description || null,
+        isBookableOnline: values.isBookableOnline,
+        imageUrls: getImageUrls(values),
+      }),
     onSuccess: () => {
       resetForm();
       invalidateCarQueries();
@@ -254,14 +170,11 @@ export function InventoryPage() {
   });
 
   const archiveCarMutation = useMutation({
-    mutationFn: async (carId: string) =>
-      api.archiveCar(session.token!, carId),
-
+    mutationFn: async (carId: string) => api.archiveCar(session.token!, carId),
     onSuccess: (_result, archivedCarId) => {
       if (editingCarId === archivedCarId) {
         resetForm();
       }
-
       invalidateCarQueries();
     },
   });
@@ -269,11 +182,7 @@ export function InventoryPage() {
   function startEditing(car: Car) {
     setEditingCarId(car.id);
     inventoryForm.reset(carToFormValues(car));
-
-    window.scrollTo({
-      top: 0,
-      behavior: "smooth",
-    });
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function cancelEditing() {
@@ -281,401 +190,226 @@ export function InventoryPage() {
   }
 
   function archiveCar(car: Car) {
-    const confirmed = window.confirm(
-      `Archive ${car.brand.name} ${car.model}? It will be removed from public browsing.`,
-    );
-
+    const confirmed = window.confirm(`Archive ${car.brand.name} ${car.model}? It will be removed from public browsing.`);
     if (confirmed) {
       archiveCarMutation.mutate(car.id);
     }
   }
 
-  function onSubmit(
-    values: InventoryFormValues,
-  ) {
+  function onSubmit(values: InventoryFormValues) {
     if (editingCarId) {
-      updateCarMutation.mutate({
-        carId: editingCarId,
-        values,
-      });
-
+      updateCarMutation.mutate({ carId: editingCarId, values });
       return;
     }
-
     createCarMutation.mutate(values);
   }
 
-  const activeMutationError =
-    createCarMutation.error ??
-    updateCarMutation.error;
-
-  const isSaving =
-    createCarMutation.isPending ||
-    updateCarMutation.isPending;
+  const activeMutationError = createCarMutation.error ?? updateCarMutation.error;
+  const isSaving = createCarMutation.isPending || updateCarMutation.isPending;
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            {isEditing
-              ? "Edit car"
-              : "Add inventory"}
-          </CardTitle>
+    <div className="page-stack">
+      <PageIntro
+        eyebrow="Fleet"
+        title="Inventory"
+        description="Create, update, and archive live car listings for your rental shop."
+      />
 
-          <CardDescription>
-            {isEditing
-              ? "Update the selected car listing."
-              : "Create a car listing for your shop using the live admin API."}
-          </CardDescription>
-        </CardHeader>
+      <div className="grid gap-6 xl:grid-cols-[390px_minmax(0,1fr)]">
+        <Card>
+          <CardHeader>
+            <CardTitle>{isEditing ? "Edit car" : "Add inventory"}</CardTitle>
+            <CardDescription>
+              {isEditing ? "Update the selected car listing." : "Create a car listing for your shop using the live admin API."}
+            </CardDescription>
+          </CardHeader>
 
-        <CardContent>
-          <form
-            onSubmit={inventoryForm.handleSubmit(
-              onSubmit,
-            )}
-            className="space-y-3"
-            noValidate
-          >
-            <Select
-              aria-label="Brand"
-              {...inventoryForm.register(
-                "brandId",
-              )}
-            >
-              <option value="">
-                Select brand
-              </option>
-
-              {(brandsQuery.data ?? []).map(
-                (brand) => (
-                  <option
-                    key={brand.id}
-                    value={brand.id}
-                  >
-                    {brand.name}
-                  </option>
-                ),
-              )}
-            </Select>
-
-            {inventoryForm.formState.errors
-              .brandId && (
-              <p className="text-sm text-destructive">
-                {
-                  inventoryForm.formState.errors
-                    .brandId.message
-                }
-              </p>
-            )}
-
-            <Select
-              aria-label="Car type"
-              {...inventoryForm.register("type")}
-            >
-              {CAR_TYPES.map((type) => (
-                <option
-                  key={type}
-                  value={type}
-                >
-                  {type}
-                </option>
-              ))}
-            </Select>
-
-            <Input
-              placeholder="Model"
-              {...inventoryForm.register("model")}
-            />
-
-            {inventoryForm.formState.errors
-              .model && (
-              <p className="text-sm text-destructive">
-                {
-                  inventoryForm.formState.errors
-                    .model.message
-                }
-              </p>
-            )}
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Input
-                  type="number"
-                  placeholder="Year"
-                  {...inventoryForm.register(
-                    "year",
-                  )}
-                />
-
-                {inventoryForm.formState.errors
-                  .year && (
-                  <p className="text-sm text-destructive">
-                    {
-                      inventoryForm.formState
-                        .errors.year.message
-                    }
-                  </p>
-                )}
+          <CardContent>
+            <form onSubmit={inventoryForm.handleSubmit(onSubmit)} className="space-y-4" noValidate>
+              <div className="field-stack">
+                <Label>Brand</Label>
+                <Select aria-label="Brand" {...inventoryForm.register("brandId")}>
+                  <option value="">Select brand</option>
+                  {(brandsQuery.data ?? []).map((brand) => (
+                    <option key={brand.id} value={brand.id}>
+                      {brand.name}
+                    </option>
+                  ))}
+                </Select>
+                {inventoryForm.formState.errors.brandId ? (
+                  <p className="text-sm text-destructive">{inventoryForm.formState.errors.brandId.message}</p>
+                ) : null}
               </div>
 
-              <div className="space-y-1">
-                <Input
-                  type="number"
-                  placeholder="Price/day"
-                  {...inventoryForm.register(
-                    "pricePerDay",
-                  )}
-                />
-
-                {inventoryForm.formState.errors
-                  .pricePerDay && (
-                  <p className="text-sm text-destructive">
-                    {
-                      inventoryForm.formState
-                        .errors.pricePerDay
-                        .message
-                    }
-                  </p>
-                )}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Input
-                  type="number"
-                  placeholder="Minimum rental days"
-                  {...inventoryForm.register(
-                    "minRentalDays",
-                  )}
-                />
-
-                {inventoryForm.formState.errors
-                  .minRentalDays && (
-                  <p className="text-sm text-destructive">
-                    {
-                      inventoryForm.formState
-                        .errors.minRentalDays
-                        .message
-                    }
-                  </p>
-                )}
+              <div className="field-stack">
+                <Label>Car type</Label>
+                <Select aria-label="Car type" {...inventoryForm.register("type")}>
+                  {CAR_TYPES.map((type) => (
+                    <option key={type} value={type}>
+                      {type}
+                    </option>
+                  ))}
+                </Select>
               </div>
 
-              <div className="space-y-1">
-                <Input
-                  type="number"
-                  placeholder="Extra fees"
-                  {...inventoryForm.register(
-                    "extraFees",
-                  )}
-                />
-
-                {inventoryForm.formState.errors
-                  .extraFees && (
-                  <p className="text-sm text-destructive">
-                    {
-                      inventoryForm.formState
-                        .errors.extraFees.message
-                    }
-                  </p>
-                )}
+              <div className="field-stack">
+                <Label htmlFor="inventory-model">Model</Label>
+                <Input id="inventory-model" placeholder="Model" {...inventoryForm.register("model")} />
+                {inventoryForm.formState.errors.model ? (
+                  <p className="text-sm text-destructive">{inventoryForm.formState.errors.model.message}</p>
+                ) : null}
               </div>
-            </div>
 
-            <Textarea
-              placeholder="Description"
-              {...inventoryForm.register(
-                "description",
-              )}
-            />
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="field-stack">
+                  <Label htmlFor="inventory-year">Year</Label>
+                  <Input id="inventory-year" type="number" placeholder="Year" {...inventoryForm.register("year")} />
+                  {inventoryForm.formState.errors.year ? (
+                    <p className="text-sm text-destructive">{inventoryForm.formState.errors.year.message}</p>
+                  ) : null}
+                </div>
+                <div className="field-stack">
+                  <Label htmlFor="inventory-price">Price per day</Label>
+                  <Input id="inventory-price" type="number" placeholder="Price/day" {...inventoryForm.register("pricePerDay")} />
+                  {inventoryForm.formState.errors.pricePerDay ? (
+                    <p className="text-sm text-destructive">{inventoryForm.formState.errors.pricePerDay.message}</p>
+                  ) : null}
+                </div>
+              </div>
 
-            {inventoryForm.formState.errors
-              .description && (
-              <p className="text-sm text-destructive">
-                {
-                  inventoryForm.formState.errors
-                    .description.message
-                }
-              </p>
-            )}
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="field-stack">
+                  <Label htmlFor="inventory-min-days">Minimum rental days</Label>
+                  <Input
+                    id="inventory-min-days"
+                    type="number"
+                    placeholder="Minimum rental days"
+                    {...inventoryForm.register("minRentalDays")}
+                  />
+                  {inventoryForm.formState.errors.minRentalDays ? (
+                    <p className="text-sm text-destructive">{inventoryForm.formState.errors.minRentalDays.message}</p>
+                  ) : null}
+                </div>
+                <div className="field-stack">
+                  <Label htmlFor="inventory-extra-fees">Extra fees</Label>
+                  <Input
+                    id="inventory-extra-fees"
+                    type="number"
+                    placeholder="Extra fees"
+                    {...inventoryForm.register("extraFees")}
+                  />
+                  {inventoryForm.formState.errors.extraFees ? (
+                    <p className="text-sm text-destructive">{inventoryForm.formState.errors.extraFees.message}</p>
+                  ) : null}
+                </div>
+              </div>
 
-            <Textarea
-              placeholder="Image URLs, one per line"
-              {...inventoryForm.register(
-                "imageUrls",
-              )}
-            />
+              <div className="field-stack">
+                <Label htmlFor="inventory-description">Description</Label>
+                <Textarea id="inventory-description" placeholder="Description" {...inventoryForm.register("description")} />
+                {inventoryForm.formState.errors.description ? (
+                  <p className="text-sm text-destructive">{inventoryForm.formState.errors.description.message}</p>
+                ) : null}
+              </div>
 
-            {inventoryForm.formState.errors
-              .imageUrls && (
-              <p className="text-sm text-destructive">
-                {
-                  inventoryForm.formState.errors
-                    .imageUrls.message
-                }
-              </p>
-            )}
+              <div className="field-stack">
+                <Label htmlFor="inventory-images">Image URLs</Label>
+                <Textarea id="inventory-images" placeholder="Image URLs, one per line" {...inventoryForm.register("imageUrls")} />
+                {inventoryForm.formState.errors.imageUrls ? (
+                  <p className="text-sm text-destructive">{inventoryForm.formState.errors.imageUrls.message}</p>
+                ) : null}
+              </div>
 
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                {...inventoryForm.register(
-                  "isBookableOnline",
-                )}
-              />
+              <label className="surface-muted flex items-center gap-3 rounded-xl px-4 py-3 text-sm text-slate-700">
+                <input className="h-4 w-4 accent-blue-600" type="checkbox" {...inventoryForm.register("isBookableOnline")} />
+                Available for online booking
+              </label>
 
-              Available for online booking
-            </label>
-
-            <Button
-              className="w-full"
-              type="submit"
-              disabled={isSaving}
-            >
-              {isSaving
-                ? "Saving..."
-                : isEditing
-                  ? "Save changes"
-                  : "Add car"}
-            </Button>
-
-            {isEditing && (
-              <Button
-                className="w-full"
-                type="button"
-                variant="outline"
-                onClick={cancelEditing}
-                disabled={isSaving}
-              >
-                Cancel editing
+              <Button className="w-full" type="submit" disabled={isSaving}>
+                {isSaving ? "Saving..." : isEditing ? "Save changes" : "Add car"}
               </Button>
-            )}
 
-            {activeMutationError && (
-              <Alert variant="destructive">
-                {getApiMessage(
-                  activeMutationError,
-                )}
-              </Alert>
-            )}
-          </form>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            Your inventory
-          </CardTitle>
-
-          <CardDescription>
-            Manage your shop’s active car
-            listings.
-          </CardDescription>
-        </CardHeader>
-
-        <CardContent className="space-y-4">
-          {inventoryQuery.isLoading && (
-            <p className="text-sm text-muted-foreground">
-              Loading inventory...
-            </p>
-          )}
-
-          {inventoryQuery.error && (
-            <Alert variant="destructive">
-              {getApiMessage(
-                inventoryQuery.error,
-              )}
-            </Alert>
-          )}
-
-          {!inventoryQuery.isLoading &&
-            !inventoryQuery.error &&
-            (inventoryQuery.data?.items
-              .length ?? 0) === 0 && (
-              <p className="text-sm text-muted-foreground">
-                Your shop does not have any
-                active cars yet.
-              </p>
-            )}
-
-          {(inventoryQuery.data?.items ??
-            []).map((car) => (
-            <div
-              key={car.id}
-              className="flex flex-col gap-3 rounded-xl border border-border p-4 sm:flex-row sm:items-center sm:justify-between"
-            >
-              <div>
-                <p className="font-medium">
-                  {car.brand.name}{" "}
-                  {car.model}
-                </p>
-
-                <p className="text-sm text-muted-foreground">
-                  {car.type} •{" "}
-                  {formatMoney(
-                    car.pricePerDay,
-                  )}
-                  /day
-                </p>
-
-                <p className="text-xs text-muted-foreground">
-                  {car.year} • Minimum{" "}
-                  {car.minRentalDays} day
-                  {car.minRentalDays === 1
-                    ? ""
-                    : "s"}{" "}
-                  •{" "}
-                  {car.isBookableOnline
-                    ? "Online booking enabled"
-                    : "Online booking disabled"}
-                </p>
-              </div>
-
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  type="button"
-                  onClick={() =>
-                    startEditing(car)
-                  }
-                  disabled={
-                    archiveCarMutation.isPending
-                  }
-                >
-                  Edit
+              {isEditing ? (
+                <Button className="w-full" type="button" variant="outline" onClick={cancelEditing} disabled={isSaving}>
+                  Cancel editing
                 </Button>
+              ) : null}
 
-                <Button
-                  variant="outline"
-                  size="sm"
-                  type="button"
-                  onClick={() =>
-                    archiveCar(car)
-                  }
-                  disabled={
-                    archiveCarMutation.isPending
-                  }
-                >
-                  Archive
-                </Button>
+              {activeMutationError ? <Alert variant="destructive">{getApiMessage(activeMutationError)}</Alert> : null}
+            </form>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Your inventory</CardTitle>
+            <CardDescription>Manage your shop's active car listings.</CardDescription>
+          </CardHeader>
+
+          <CardContent className="space-y-4">
+            {inventoryQuery.isLoading ? (
+              <div className="empty-state">
+                <CarFront className="mb-3 h-5 w-5 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">Loading inventory...</p>
               </div>
-            </div>
-          ))}
+            ) : null}
 
-          {archiveCarMutation.error && (
-            <Alert variant="destructive">
-              {getApiMessage(
-                archiveCarMutation.error,
-              )}
-            </Alert>
-          )}
-        </CardContent>
-      </Card>
+            {inventoryQuery.error ? <Alert variant="destructive">{getApiMessage(inventoryQuery.error)}</Alert> : null}
+
+            {!inventoryQuery.isLoading && !inventoryQuery.error && (inventoryQuery.data?.items.length ?? 0) === 0 ? (
+              <div className="empty-state">
+                <CarFront className="mb-3 h-5 w-5 text-muted-foreground" />
+                <p className="text-sm font-semibold text-foreground">No active cars yet</p>
+                <p className="mt-1 text-sm text-muted-foreground">Your shop does not have any active cars yet.</p>
+              </div>
+            ) : null}
+
+            {(inventoryQuery.data?.items ?? []).map((car) => (
+              <div key={car.id} className="panel-soft flex flex-col gap-4 rounded-2xl p-5 sm:flex-row sm:items-center sm:justify-between">
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-wrap-safe text-lg font-semibold tracking-[-0.02em] text-foreground">
+                      {car.brand.name} {car.model}
+                    </p>
+                    <p className="text-wrap-safe text-sm text-muted-foreground">
+                      {car.type} • {formatMoney(car.pricePerDay)}/day
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {car.year} • Minimum {car.minRentalDays} day{car.minRentalDays === 1 ? "" : "s"} •{" "}
+                      {car.isBookableOnline ? "Online booking enabled" : "Online booking disabled"}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <StatusBadge status={car.status} />
+                    <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
+                      {car.isBookableOnline ? "Online booking" : "Inquiry only"}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="outline" size="sm" type="button" onClick={() => startEditing(car)} disabled={archiveCarMutation.isPending}>
+                    <PencilLine className="h-4 w-4" />
+                    Edit
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    type="button"
+                    onClick={() => archiveCar(car)}
+                    disabled={archiveCarMutation.isPending}
+                  >
+                    Archive
+                  </Button>
+                </div>
+              </div>
+            ))}
+
+            {archiveCarMutation.error ? <Alert variant="destructive">{getApiMessage(archiveCarMutation.error)}</Alert> : null}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

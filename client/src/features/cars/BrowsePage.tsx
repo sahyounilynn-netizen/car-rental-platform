@@ -12,12 +12,13 @@ import { useSession } from "@/features/auth/useSession";
 import { CAR_TYPES } from "@/features/cars/constants";
 import type { Brand, Car } from "@/types";
 import { Alert } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PageIntro } from "@/components/ui/page-intro";
 import { Select } from "@/components/ui/select";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Textarea } from "@/components/ui/textarea";
 
 type CarFilters = {
@@ -56,6 +57,8 @@ export function BrowsePage() {
     isBookableOnline: "",
   });
   const [conversationDraft, setConversationDraft] = useState("");
+  const [failedImageIds, setFailedImageIds] = useState<Record<string, true>>({});
+  const [selectedImageFailed, setSelectedImageFailed] = useState(false);
   const bookingForm = useForm<BookingFormValues>({
     resolver: zodResolver(bookingFormSchema),
     defaultValues: { startDate: "", endDate: "" },
@@ -126,12 +129,11 @@ export function BrowsePage() {
   }
 
   const createConversationMutation = useMutation({
-    mutationFn: async (shopId: string) => {
-      return api.createConversation(session.token!, {
+    mutationFn: async (shopId: string) =>
+      api.createConversation(session.token!, {
         shopId,
         body: conversationDraft,
-      });
-    },
+      }),
     onSuccess: () => {
       setConversationDraft("");
       void queryClient.invalidateQueries({ queryKey: ["conversations"] });
@@ -158,6 +160,10 @@ export function BrowsePage() {
     }
   }, [carsQuery.data, selectedCarId, selectCar]);
 
+  useEffect(() => {
+    setSelectedImageFailed(false);
+  }, [selectedCarId]);
+
   const selectedCar =
     carsQuery.data?.items.find((car) => car.id === selectedCarId) ??
     favoritesQuery.data?.find((favorite) => favorite.car.id === selectedCarId)?.car ??
@@ -166,25 +172,32 @@ export function BrowsePage() {
   const favoriteIds = new Set((favoritesQuery.data ?? []).map((favorite) => favorite.carId));
   const canBook = session.user?.role === "USER";
 
+  function hasUsableImage(car: Car) {
+    return Boolean(car.images[0]?.url) && !failedImageIds[car.id];
+  }
+
   return (
-    <div className="space-y-6">
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+    <div className="page-stack">
+      <PageIntro
+        eyebrow="Marketplace"
+        title="Browse available cars"
+        description="Explore active rental inventory, compare pricing, and open booking or messaging actions when your account allows it."
+      />
+
+      <div className="grid gap-6 2xl:grid-cols-[minmax(0,1fr)_380px]">
         <Card>
           <CardHeader>
-            <CardTitle>Browse available cars</CardTitle>
+            <CardTitle>Available inventory</CardTitle>
             <CardDescription>Public browsing is open to everyone. Booking and messaging appear after login.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid gap-3 md:grid-cols-4">
+          <CardContent className="space-y-5">
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               <Input
                 placeholder="Search by model"
                 value={carFilters.search}
                 onChange={(event) => setCarFilters({ ...carFilters, search: event.target.value })}
               />
-              <Select
-                value={carFilters.brandId}
-                onChange={(event) => setCarFilters({ ...carFilters, brandId: event.target.value })}
-              >
+              <Select value={carFilters.brandId} onChange={(event) => setCarFilters({ ...carFilters, brandId: event.target.value })}>
                 <option value="">All brands</option>
                 {(brandsQuery.data ?? []).map((brand: Brand) => (
                   <option key={brand.id} value={brand.id}>
@@ -202,9 +215,7 @@ export function BrowsePage() {
               </Select>
               <Select
                 value={carFilters.isBookableOnline}
-                onChange={(event) =>
-                  setCarFilters({ ...carFilters, isBookableOnline: event.target.value })
-                }
+                onChange={(event) => setCarFilters({ ...carFilters, isBookableOnline: event.target.value })}
               >
                 <option value="">All availability</option>
                 <option value="true">Online bookable</option>
@@ -212,39 +223,50 @@ export function BrowsePage() {
               </Select>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid auto-rows-fr gap-4 md:grid-cols-2 2xl:grid-cols-3">
               {(carsQuery.data?.items ?? []).map((car: Car) => (
                 <button
                   key={car.id}
                   className={cn(
-                    "rounded-xl border p-4 text-left transition-colors",
-                    selectedCarId === car.id ? "border-foreground bg-accent" : "border-border hover:bg-accent/50",
+                    "transition-soft min-w-0 overflow-hidden rounded-2xl border bg-card text-left",
+                    selectedCarId === car.id
+                      ? "border-blue-200 ring-2 ring-blue-100"
+                      : "border-border hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-[0_10px_18px_rgba(15,23,42,0.06)]",
                   )}
                   onClick={() => selectCar(car.id)}
                 >
-                  <div className="mb-3 aspect-[4/3] overflow-hidden rounded-lg border bg-secondary">
-                    {car.images[0]?.url ? (
-                      <img src={car.images[0].url} alt={car.model} className="h-full w-full object-cover" />
+                  <div className="aspect-[4/3] overflow-hidden bg-slate-100">
+                    {hasUsableImage(car) ? (
+                      <img
+                        src={car.images[0]!.url}
+                        alt={`${car.brand.name} ${car.model}`}
+                        className="h-full w-full object-cover"
+                        onError={() => {
+                          setFailedImageIds((current) => ({ ...current, [car.id]: true }));
+                        }}
+                      />
                     ) : (
-                      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">No image</div>
+                      <div className="flex h-full items-center justify-center bg-slate-100 px-4 text-sm text-muted-foreground">
+                        No image available
+                      </div>
                     )}
                   </div>
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-medium">
-                        {car.brand.name} {car.model}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {car.type} • {car.year}
-                      </p>
+                  <div className="flex h-full flex-col space-y-4 p-5">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-lg font-semibold leading-6 tracking-[-0.02em] text-foreground">
+                          {car.brand.name} {car.model}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          {car.type} • {car.year}
+                        </p>
+                      </div>
+                      <StatusBadge status={car.isBookableOnline ? "CONFIRMED" : "INACTIVE"} />
                     </div>
-                    <Badge variant={car.isBookableOnline ? "default" : "outline"}>
-                      {car.isBookableOnline ? "Book online" : "Inquiry"}
-                    </Badge>
-                  </div>
-                  <div className="mt-3 flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">{car.shop.name}</span>
-                    <span className="font-medium">{formatMoney(car.pricePerDay)}/day</span>
+                    <div className="mt-auto flex flex-wrap items-center justify-between gap-2 text-sm">
+                      <span className="min-w-0 break-words text-muted-foreground">{car.shop.name}</span>
+                      <span className="shrink-0 font-semibold text-foreground">{formatMoney(car.pricePerDay)}/day</span>
+                    </div>
                   </div>
                 </button>
               ))}
@@ -262,31 +284,54 @@ export function BrowsePage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
-            {selectedCar ? (
+                {selectedCar ? (
               <>
-                <div className="space-y-3 text-sm">
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Price per day</span>
-                    <span>{formatMoney(selectedCar.pricePerDay)}</span>
+                <div className="aspect-[4/3] overflow-hidden rounded-2xl bg-slate-100">
+                  {selectedCar.images[0]?.url && !selectedImageFailed ? (
+                    <img
+                      src={selectedCar.images[0].url}
+                      alt={`${selectedCar.brand.name} ${selectedCar.model}`}
+                      className="h-full w-full object-cover"
+                      onError={() => setSelectedImageFailed(true)}
+                    />
+                  ) : (
+                    <div className="flex h-full items-center justify-center bg-slate-100 px-4 text-sm text-muted-foreground">
+                      No image available
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid gap-3 text-sm sm:grid-cols-2">
+                  <div className="surface-muted rounded-xl px-4 py-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Price per day</p>
+                    <p className="mt-1 font-semibold text-foreground">{formatMoney(selectedCar.pricePerDay)}</p>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Extra fees</span>
-                    <span>{selectedCar.extraFees ? formatMoney(selectedCar.extraFees) : "None"}</span>
+                  <div className="surface-muted rounded-xl px-4 py-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Extra fees</p>
+                    <p className="mt-1 font-semibold text-foreground">
+                      {selectedCar.extraFees ? formatMoney(selectedCar.extraFees) : "None"}
+                    </p>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Online booking</span>
-                    <span>{selectedCar.isBookableOnline ? "Enabled" : "Unavailable"}</span>
+                  <div className="surface-muted rounded-xl px-4 py-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Availability</p>
+                    <div className="mt-1">
+                      <StatusBadge status={selectedCar.status} />
+                    </div>
+                  </div>
+                  <div className="surface-muted rounded-xl px-4 py-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Online booking</p>
+                    <p className="mt-1 font-semibold text-foreground">
+                      {selectedCar.isBookableOnline ? "Enabled" : "Unavailable"}
+                    </p>
                   </div>
                 </div>
 
-                {selectedCar.description && (
-                  <div className="rounded-lg border border-border p-3 text-sm text-muted-foreground">
-                    {selectedCar.description}
-                  </div>
-                )}
+                {selectedCar.description ? (
+                  <div className="surface-muted rounded-2xl p-4 text-sm leading-6 text-slate-700">{selectedCar.description}</div>
+                ) : null}
 
-                {session.user?.role === "USER" && (
-                  <div className="space-y-3">
+                {session.user?.role === "USER" ? (
+                  <div className="space-y-4">
                     <Button
                       variant={favoriteIds.has(selectedCar.id) ? "secondary" : "outline"}
                       className="w-full"
@@ -297,46 +342,36 @@ export function BrowsePage() {
                       {favoriteIds.has(selectedCar.id) ? "Remove favorite" : "Save favorite"}
                     </Button>
 
-                    {selectedCar.isBookableOnline && canBook && (
-                      <div className="space-y-3 rounded-lg border border-border p-4">
-                        <p className="text-sm font-medium">Create booking</p>
-                        <form
-                          onSubmit={bookingForm.handleSubmit(onSubmitBooking)}
-                          className="space-y-3"
-                          noValidate
-                        >
+                    {selectedCar.isBookableOnline && canBook ? (
+                      <div className="surface-muted space-y-4 rounded-2xl p-4">
+                        <p className="text-sm font-semibold text-foreground">Create booking</p>
+                        <form onSubmit={bookingForm.handleSubmit(onSubmitBooking)} className="space-y-3" noValidate>
                           <div className="grid gap-3 sm:grid-cols-2">
                             <div className="space-y-2">
                               <Label htmlFor="startDate">Start date</Label>
                               <Input id="startDate" type="date" {...bookingForm.register("startDate")} />
-                              {bookingForm.formState.errors.startDate && (
-                                <p className="text-sm text-destructive">
-                                  {bookingForm.formState.errors.startDate.message}
-                                </p>
-                              )}
+                              {bookingForm.formState.errors.startDate ? (
+                                <p className="text-sm text-destructive">{bookingForm.formState.errors.startDate.message}</p>
+                              ) : null}
                             </div>
                             <div className="space-y-2">
                               <Label htmlFor="endDate">End date</Label>
                               <Input id="endDate" type="date" {...bookingForm.register("endDate")} />
-                              {bookingForm.formState.errors.endDate && (
-                                <p className="text-sm text-destructive">
-                                  {bookingForm.formState.errors.endDate.message}
-                                </p>
-                              )}
+                              {bookingForm.formState.errors.endDate ? (
+                                <p className="text-sm text-destructive">{bookingForm.formState.errors.endDate.message}</p>
+                              ) : null}
                             </div>
                           </div>
                           <Button className="w-full" type="submit" disabled={bookingMutation.isPending}>
                             Book this car
                           </Button>
-                          {bookingMutation.error && (
-                            <Alert variant="destructive">{getApiMessage(bookingMutation.error)}</Alert>
-                          )}
+                          {bookingMutation.error ? <Alert variant="destructive">{getApiMessage(bookingMutation.error)}</Alert> : null}
                         </form>
                       </div>
-                    )}
+                    ) : null}
 
-                    <div className="space-y-3 rounded-lg border border-border p-4">
-                      <p className="text-sm font-medium">Message the shop</p>
+                    <div className="surface-muted space-y-4 rounded-2xl p-4">
+                      <p className="text-sm font-semibold text-foreground">Message the shop</p>
                       <Textarea
                         value={conversationDraft}
                         onChange={(event) => setConversationDraft(event.target.value)}
@@ -349,22 +384,24 @@ export function BrowsePage() {
                       >
                         Start conversation
                       </Button>
-                      {createConversationMutation.error && (
-                        <p className="text-sm text-destructive">{getApiMessage(createConversationMutation.error)}</p>
-                      )}
+                      {createConversationMutation.error ? (
+                        <Alert variant="destructive">{getApiMessage(createConversationMutation.error)}</Alert>
+                      ) : null}
                     </div>
                   </div>
-                )}
+                ) : null}
 
-                {!session.user && (
-                  <p className="text-sm text-muted-foreground">
+                {!session.user ? (
+                  <div className="surface-muted rounded-2xl p-4 text-sm text-muted-foreground">
                     Log in to save favorites, place a booking, or contact this shop.
-                  </p>
-                )}
+                  </div>
+                ) : null}
               </>
             ) : (
-              <div className="rounded-lg border border-dashed border-border p-6 text-sm text-muted-foreground">
-                No car selected yet.
+              <div className="empty-state">
+                <CarFront className="mb-3 h-5 w-5 text-muted-foreground" />
+                <p className="text-sm font-semibold text-foreground">No car selected</p>
+                <p className="mt-1 text-sm text-muted-foreground">Choose a car from the list to view details and actions.</p>
               </div>
             )}
           </CardContent>
@@ -374,37 +411,43 @@ export function BrowsePage() {
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <CarFront className="h-4 w-4" />
+            <CardTitle className="flex items-center gap-3 text-base">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
+                <CarFront className="h-4 w-4" />
+              </span>
               Live inventory
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-semibold">{carsQuery.data?.meta.total ?? 0}</p>
+            <p className="text-3xl font-semibold text-foreground">{carsQuery.data?.meta.total ?? 0}</p>
             <p className="text-sm text-muted-foreground">Public cars currently returned by the API.</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Star className="h-4 w-4" />
+            <CardTitle className="flex items-center gap-3 text-base">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
+                <Star className="h-4 w-4" />
+              </span>
               Saved favorites
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-semibold">{favoritesQuery.data?.length ?? 0}</p>
+            <p className="text-3xl font-semibold text-foreground">{favoritesQuery.data?.length ?? 0}</p>
             <p className="text-sm text-muted-foreground">Visible once you log in as a user.</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <MessageSquare className="h-4 w-4" />
+            <CardTitle className="flex items-center gap-3 text-base">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
+                <MessageSquare className="h-4 w-4" />
+              </span>
               Conversations
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-semibold">{conversationsQuery.data?.length ?? 0}</p>
+            <p className="text-3xl font-semibold text-foreground">{conversationsQuery.data?.length ?? 0}</p>
             <p className="text-sm text-muted-foreground">Private conversation threads between customers and rental shops.</p>
           </CardContent>
         </Card>

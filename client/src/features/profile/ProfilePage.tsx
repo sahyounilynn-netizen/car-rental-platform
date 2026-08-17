@@ -10,19 +10,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PageIntro } from "@/components/ui/page-intro";
+import { StatusBadge } from "@/components/ui/status-badge";
 
-// The server's phoneSchema validates via libphonenumber-js, which isn't a
-// client dependency — this is a lightweight client-side pre-check for early
-// feedback, reusing the server's exact message. The server remains the
-// source of truth (surfaced via Alert on submit if it disagrees).
 const PHONE_PATTERN = /^\+?[0-9()\-.\s]{7,20}$/;
 
-// Server's updateProfileSchema also refines that at least one field must be
-// present in the request body ("At least one field must be provided"), to
-// reject a truly empty PATCH. That's unreachable from this form: `name` is
-// always required and always sent, so the payload can never be empty — no
-// separate client-side rule is needed to mirror it. Confirmed by hitting
-// PATCH /users/me with `{}` directly rather than assuming.
 const profileFormSchema = z
   .object({
     name: z.string().trim().min(2, "Name must be at least 2 characters").max(100),
@@ -67,43 +59,78 @@ export function ProfilePage() {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Profile</CardTitle>
-        <CardDescription>Update the information stored on your account.</CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-6 md:grid-cols-[minmax(0,420px)_1fr]">
-        <form onSubmit={profileForm.handleSubmit(onSubmit)} className="space-y-3" noValidate>
-          <div className="space-y-2">
-            <Label htmlFor="profile-name">Name</Label>
-            <Input id="profile-name" {...profileForm.register("name")} />
-            {profileForm.formState.errors.name && (
-              <p className="text-sm text-destructive">{profileForm.formState.errors.name.message}</p>
-            )}
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="profile-phone">Phone</Label>
-            <Input id="profile-phone" {...profileForm.register("phone")} />
-            {profileForm.formState.errors.phone && (
-              <p className="text-sm text-destructive">{profileForm.formState.errors.phone.message}</p>
-            )}
-          </div>
-          <Button type="submit" disabled={profileMutation.isPending}>
-            Save profile
-          </Button>
-          {profileMutation.error && (
-            <Alert variant="destructive">{getApiMessage(profileMutation.error)}</Alert>
-          )}
-        </form>
-        <div className="space-y-3 rounded-xl border border-border p-4">
-          <p className="text-sm font-medium">Account summary</p>
-          <div className="space-y-2 text-sm text-muted-foreground">
-            <p>Email: {session.user.email}</p>
-            <p>Role: {session.user.role}</p>
-            {session.user.shop && <p>Shop: {session.user.shop.name}</p>}
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+    <div className="page-stack">
+      <PageIntro
+        eyebrow="Account"
+        title="Profile"
+        description="Update the information stored on your account and review your current workspace role."
+      />
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,520px)_minmax(0,1fr)]">
+        <Card>
+          <CardHeader>
+            <CardTitle>Personal details</CardTitle>
+            <CardDescription>Keep your account name and contact information current.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={profileForm.handleSubmit(onSubmit)} className="space-y-4" noValidate>
+              <div className="field-stack">
+                <Label htmlFor="profile-name">Name</Label>
+                <Input id="profile-name" {...profileForm.register("name")} />
+                {profileForm.formState.errors.name ? (
+                  <p className="text-sm text-destructive">{profileForm.formState.errors.name.message}</p>
+                ) : null}
+              </div>
+
+              <div className="field-stack">
+                <Label htmlFor="profile-phone">Phone</Label>
+                <Input id="profile-phone" {...profileForm.register("phone")} />
+                {profileForm.formState.errors.phone ? (
+                  <p className="text-sm text-destructive">{profileForm.formState.errors.phone.message}</p>
+                ) : null}
+              </div>
+
+              <Button type="submit" disabled={profileMutation.isPending}>
+                Save profile
+              </Button>
+
+              {profileMutation.error ? (
+                <Alert variant="destructive">{getApiMessage(profileMutation.error)}</Alert>
+              ) : null}
+            </form>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Account summary</CardTitle>
+            <CardDescription>Reference details tied to your current session.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="surface-muted space-y-4 rounded-2xl p-5">
+              <div className="space-y-1">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Email</p>
+                <p className="text-wrap-safe text-sm font-medium text-foreground">{session.user.email}</p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Role</p>
+                <StatusBadge status={session.user.role} />
+              </div>
+              {session.user.status ? (
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Status</p>
+                  <StatusBadge status={session.user.status} />
+                </div>
+              ) : null}
+              {session.user.shop ? (
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Shop</p>
+                  <p className="text-wrap-safe text-sm font-medium text-foreground">{session.user.shop.name}</p>
+                </div>
+              ) : null}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
   );
 }

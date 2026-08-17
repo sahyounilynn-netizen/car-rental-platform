@@ -4,25 +4,43 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --radius: 0.875rem;
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
+  --primary: #2563eb;
+  --primary-foreground: #ffffff;
+  --secondary: #eff6ff;
+  --secondary-foreground: #172554;
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+  --accent: #f1f5f9;
+  --accent-foreground: #0f172a;
+  --destructive: #dc2626;
+  --border: #e2e8f0;
+  --input: #cbd5e1;
+  --ring: #bfdbfe;
+  --sidebar: #0f172a;
+  --sidebar-surface: #1e293b;
+  --sidebar-foreground: #e2e8f0;
+  --sidebar-muted: #94a3b8;
+  --heading: #0f172a;
+  --body: #334155;
+  --primary-hover: #1d4ed8;
+  --primary-pressed: #1e40af;
+  --success-bg: #dcfce7;
+  --success-text: #166534;
+  --warning-bg: #fef3c7;
+  --warning-text: #92400e;
+  --error-bg: #fee2e2;
+  --error-text: #991b1b;
+  --info-bg: #dbeafe;
+  --info-text: #1e40af;
+  --neutral-bg: #f1f5f9;
+  --neutral-text: #475569;
 }
 
 .dark {
@@ -77,6 +95,7 @@
   }
   html {
     @apply bg-background;
+    color-scheme: light;
   }
   body {
     @apply bg-background text-foreground antialiased;
@@ -84,8 +103,109 @@
       "Instrument Sans",
       "Segoe UI",
       sans-serif;
+    color: var(--body);
   }
   #root {
     @apply min-h-screen;
+  }
+  h1,
+  h2,
+  h3,
+  h4 {
+    color: var(--heading);
+  }
+  button,
+  [role="button"] {
+    cursor: pointer;
+  }
+  button:disabled,
+  [role="button"][aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+}
+
+@layer components {
+  .page-shell {
+    @apply mx-auto w-full max-w-[1400px] px-4 py-4 sm:px-5 sm:py-5 lg:px-6 lg:py-6 xl:px-8 xl:py-7;
+  }
+
+  .page-stack {
+    @apply space-y-6 lg:space-y-8;
+  }
+
+  .page-intro {
+    @apply flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between;
+  }
+
+  .page-intro-eyebrow {
+    @apply text-[12px] font-semibold uppercase tracking-[0.18em] text-muted-foreground;
+  }
+
+  .page-intro-title {
+    @apply text-[1.7rem] font-bold tracking-[-0.03em] text-foreground sm:text-[1.85rem] lg:text-[2.15rem];
+    line-height: 1.06;
+  }
+
+  .page-intro-description {
+    @apply max-w-3xl text-sm leading-6 text-muted-foreground sm:text-[15px];
+  }
+
+  .panel-soft {
+    @apply rounded-2xl border border-border bg-card shadow-[0_1px_3px_rgba(15,23,42,0.08)] transition-all;
+  }
+
+  .content-card-grid {
+    @apply grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3;
+  }
+
+  .content-card {
+    @apply min-w-0;
+  }
+
+  .form-grid {
+    @apply grid gap-4 md:grid-cols-2;
+  }
+
+  .table-wrap {
+    @apply overflow-x-auto rounded-2xl border border-border bg-card shadow-[0_1px_3px_rgba(15,23,42,0.08)];
+  }
+
+  .surface-muted {
+    @apply rounded-xl border border-border bg-slate-50;
+  }
+
+  .empty-state {
+    @apply flex min-h-32 flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50/70 px-6 py-10 text-center;
+  }
+
+  .field-stack {
+    @apply space-y-2;
+  }
+
+  .text-wrap-safe {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .status-chip {
+    @apply inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold tracking-[0.01em];
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .transition-soft {
+    transition-duration: 180ms;
+    transition-property:
+      color,
+      background-color,
+      border-color,
+      box-shadow,
+      transform,
+      opacity;
+    transition-timing-function: ease;
   }
 }

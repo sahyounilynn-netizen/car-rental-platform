@@ -33,16 +33,18 @@ export function AppShell() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b border-border bg-background">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
-          <div>
-            <p className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">Car Rental Platform</p>
-            <h1 className="text-xl font-semibold">{workspaceTitle}</h1>
+      <header className="sticky top-0 z-20 border-b border-border/80 bg-background/95 backdrop-blur">
+        <div className="page-shell flex flex-col gap-3 py-4 lg:flex-row lg:items-center lg:justify-between lg:py-4">
+          <div className="space-y-1">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Car Rental Platform</p>
+            <h1 className="max-w-3xl text-[1.65rem] font-bold leading-[1.08] tracking-[-0.03em] text-foreground sm:text-[1.85rem] lg:text-[2rem]">
+              {workspaceTitle}
+            </h1>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="hidden text-right sm:block">
-              <p className="text-sm font-medium">{session.user?.name}</p>
-              <p className="text-xs text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="min-w-0 rounded-2xl border border-border bg-card px-4 py-3 text-left shadow-[0_1px_2px_rgba(15,23,42,0.04)] sm:text-right">
+              <p className="text-sm font-semibold text-foreground">{session.user?.name}</p>
+              <p className="max-w-[240px] break-words text-xs text-muted-foreground sm:max-w-[280px]">
                 {session.user?.role === "ADMIN" && session.user.shop
                   ? `${session.user.shop.name} admin`
                   : session.user?.role === "SUPERADMIN"
@@ -58,11 +60,11 @@ export function AppShell() {
         </div>
       </header>
 
-      <div className="mx-auto grid max-w-7xl gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[220px_minmax(0,1fr)] lg:px-8">
-        <aside className="space-y-4">
-          <Card>
+      <div className="page-shell grid items-start gap-6 pt-5 lg:grid-cols-[260px_minmax(0,1fr)]">
+        <aside className="min-w-0 space-y-4">
+          <Card className="overflow-hidden border-slate-800 bg-[color:var(--sidebar)] text-[color:var(--sidebar-foreground)] shadow-[0_14px_32px_rgba(15,23,42,0.12)]">
             <CardHeader>
-              <CardTitle className="text-base">Navigation</CardTitle>
+              <CardTitle className="text-base text-white">Navigation</CardTitle>
               <CardDescription>
                 {session.user?.role === "SUPERADMIN"
                   ? "Use the dashboard to monitor the platform and manage tenant access."
@@ -75,7 +77,7 @@ export function AppShell() {
           </Card>
         </aside>
 
-        <main className="space-y-6">
+        <main className="min-w-0 space-y-6 overflow-x-hidden">
           <Outlet />
         </main>
       </div>

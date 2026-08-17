@@ -47,14 +47,14 @@ export function Sidebar() {
             end={item.end}
             className={({ isActive }) =>
               cn(
-                "flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors",
+                "transition-soft flex min-h-11 w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-left text-sm font-medium",
                 isActive
-                  ? "bg-secondary text-secondary-foreground"
-                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                  ? "bg-blue-600 text-white shadow-[inset_3px_0_0_0_#bfdbfe]"
+                  : "text-[color:var(--sidebar-foreground)]/90 hover:bg-white/8 hover:text-white",
               )
             }
           >
-            <Icon className="h-4 w-4" />
+            <Icon className={cn("h-4 w-4 shrink-0", !item.end ? "" : "")} />
             {item.label}
           </NavLink>
         );
