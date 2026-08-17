@@ -6,7 +6,7 @@ import {
   it,
 } from "vitest";
 import request from "supertest";
-import { createApp } from "../../../app";
+import { createApp } from "../../../createApp";
 import { prisma } from "../../../lib/prisma";
 import { signAccessToken } from "../../../lib/jwt";
 
