@@ -1,5 +1,5 @@
 import { NavLink } from "react-router";
-import { CalendarDays, CarFront, Heart, MessageSquare, Search, Shield, UserRound } from "lucide-react";
+import { CalendarDays, CarFront, Heart, LayoutDashboard, MessageSquare, Search, Shield, Store, UserRound } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSession } from "@/features/auth/useSession";
 
@@ -15,6 +15,9 @@ export function Sidebar() {
 
   const items: NavItem[] = [
     { to: "/", end: true, label: "Browse cars", icon: Search },
+    ...(session.user?.role === "SUPERADMIN"
+      ? [{ to: "/admin", label: "Dashboard", icon: LayoutDashboard }]
+      : []),
     ...(session.user?.role === "USER"
       ? [
           { to: "/favorites", label: "Favorites", icon: Heart },
@@ -27,6 +30,7 @@ export function Sidebar() {
           { to: "/inventory", label: "Inventory", icon: CarFront },
           { to: "/shop-bookings", label: "Shop bookings", icon: Shield },
           { to: "/conversations", label: "Inbox", icon: MessageSquare },
+          { to: "/shop-profile", label: "Shop profile", icon: Store },
         ]
       : []),
     ...(session.user ? [{ to: "/profile", label: "Profile", icon: UserRound }] : []),

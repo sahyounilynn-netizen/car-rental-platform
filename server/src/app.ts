@@ -8,11 +8,13 @@ import { env } from "./config/env";
 import { logger } from "./lib/logger";
 import { generalLimiter } from "./middlewares/rateLimit";
 import { errorHandler, notFoundHandler } from "./middlewares/errorHandler";
+import { adminRouter } from "./modules/admin/admin.routes";
 import { authRouter } from "./modules/auth/auth.routes";
 import { bookingsRouter } from "./modules/bookings/bookings.routes";
 import { carsRouter } from "./modules/cars/cars.routes";
 import { conversationsRouter } from "./modules/conversations/conversations.routes";
 import { favoritesRouter } from "./modules/favorites/favorites.routes";
+import { shopsRouter } from "./modules/shops/shops.routes";
 import { usersRouter } from "./modules/users/users.routes";
 
 export function createApp() {
@@ -37,11 +39,13 @@ export function createApp() {
   });
 
   app.use("/api/auth", authRouter);
+  app.use("/api/admin", adminRouter);
   app.use("/api/users", usersRouter);
   app.use("/api/cars", carsRouter);
   app.use("/api/bookings", bookingsRouter);
   app.use("/api/conversations", conversationsRouter);
   app.use("/api/favorites", favoritesRouter);
+  app.use("/api/shops", shopsRouter);
   // Further feature routes are mounted here module by module in later phases.
 
   app.use(notFoundHandler);

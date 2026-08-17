@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, describe, expect, it } from "vitest";
 import request from "supertest";
 import { createApp } from "../../../app";
+import { signAccessToken } from "../../../lib/jwt";
 import { prisma } from "../../../lib/prisma";
 
 const app = createApp();
@@ -212,5 +213,40 @@ describe("Conversations module", () => {
     );
     expect(adminMessage?.readAt).toEqual(expect.any(String));
   });
-});
 
+  it("rejects direct conversation access for roles outside USER and ADMIN", async () => {
+    const admin = await signupAdmin("superadmin-guard-admin");
+    const user = await signupUser("superadmin-guard-user");
+
+    const createRes = await request(app)
+      .post("/api/conversations")
+      .set("Authorization", `Bearer ${user.accessToken}`)
+      .send({
+        shopId: admin.shopId,
+        body: "Checking role restrictions",
+      });
+
+    const conversationId = createRes.body.conversation.id as string;
+    const superadminToken = signAccessToken({
+      sub: randomUUID(),
+      role: "SUPERADMIN",
+    });
+
+    const detailRes = await request(app)
+      .get(`/api/conversations/${conversationId}`)
+      .set("Authorization", `Bearer ${superadminToken}`);
+
+    const messageRes = await request(app)
+      .post(`/api/conversations/${conversationId}/messages`)
+      .set("Authorization", `Bearer ${superadminToken}`)
+      .send({ body: "Not allowed" });
+
+    const readRes = await request(app)
+      .patch(`/api/conversations/${conversationId}/read`)
+      .set("Authorization", `Bearer ${superadminToken}`);
+
+    expect(detailRes.status).toBe(403);
+    expect(messageRes.status).toBe(403);
+    expect(readRes.status).toBe(403);
+  });
+});

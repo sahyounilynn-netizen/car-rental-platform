@@ -16,6 +16,15 @@ export function ConversationsPage() {
   const navigate = useNavigate();
   const { conversationId: selectedConversationId } = useParams<{ conversationId?: string }>();
   const [messageDraft, setMessageDraft] = useState("");
+  const isAdmin = session.user?.role === "ADMIN";
+  const pageTitle = isAdmin ? "Inbox" : "Messages";
+  const pageDescription = isAdmin
+    ? "Review customer threads for your shop and reply from your business account."
+    : "Talk directly with rental shops about availability, pricing, pickup, and bookings.";
+  const emptyThreadLabel = isAdmin ? "No customer messages yet" : "No shop messages yet";
+  const composerPlaceholder = isAdmin ? "Reply to this customer" : "Write a message to this shop";
+  const sendLabel = isAdmin ? "Send reply" : "Send message";
+  const markReadLabel = isAdmin ? "Mark customer messages as read" : "Mark shop messages as read";
 
   const conversationsQuery = useQuery({
     queryKey: ["conversations", session.user?.role, session.user?.id, session.user?.shop?.id],
@@ -62,8 +71,8 @@ export function ConversationsPage() {
     <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
       <Card>
         <CardHeader>
-          <CardTitle>{session.user?.role === "ADMIN" ? "Inbox" : "My conversations"}</CardTitle>
-          <CardDescription>Select a thread to read or reply.</CardDescription>
+          <CardTitle>{pageTitle}</CardTitle>
+          <CardDescription>{pageDescription}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">
           {(conversationsQuery.data ?? []).map((conversation: Conversation) => (
@@ -77,12 +86,12 @@ export function ConversationsPage() {
             >
               <div className="flex items-center justify-between gap-3">
                 <p className="font-medium">
-                  {session.user?.role === "ADMIN" ? conversation.user.name : conversation.shop.name}
+                  {isAdmin ? conversation.user.name : conversation.shop.name}
                 </p>
                 <span className="text-xs text-muted-foreground">{formatDate(conversation.updatedAt)}</span>
               </div>
               <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
-                {conversation.messages[conversation.messages.length - 1]?.body ?? "No messages yet"}
+                {conversation.messages[conversation.messages.length - 1]?.body ?? emptyThreadLabel}
               </p>
             </button>
           ))}
@@ -93,12 +102,16 @@ export function ConversationsPage() {
         <CardHeader>
           <CardTitle>
             {selectedConversationQuery.data
-              ? session.user?.role === "ADMIN"
+              ? isAdmin
                 ? selectedConversationQuery.data.user.name
                 : selectedConversationQuery.data.shop.name
               : "Conversation"}
           </CardTitle>
-          <CardDescription>All messages are synced against the live API.</CardDescription>
+          <CardDescription>
+            {isAdmin
+              ? "Only conversations belonging to your shop are visible here."
+              : "Only your own conversations with shops are visible here."}
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="max-h-[420px] space-y-3 overflow-y-auto rounded-lg border border-border p-4">
@@ -122,7 +135,7 @@ export function ConversationsPage() {
               className="min-h-20"
               value={messageDraft}
               onChange={(event) => setMessageDraft(event.target.value)}
-              placeholder="Write a reply"
+              placeholder={composerPlaceholder}
             />
           </div>
           <div className="flex flex-wrap gap-2">
@@ -130,14 +143,14 @@ export function ConversationsPage() {
               onClick={() => sendMessageMutation.mutate()}
               disabled={sendMessageMutation.isPending || !messageDraft.trim() || !selectedConversationId}
             >
-              Send reply
+              {sendLabel}
             </Button>
             <Button
               variant="outline"
               onClick={() => markReadMutation.mutate()}
               disabled={markReadMutation.isPending || !selectedConversationId}
             >
-              Mark as read
+              {markReadLabel}
             </Button>
           </div>
           {sendMessageMutation.error && (

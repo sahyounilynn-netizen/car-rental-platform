@@ -1,6 +1,15 @@
-import { BookingSource, BookingStatus, CarStatus, Prisma } from "@prisma/client";
+import {
+  BookingSource,
+  BookingStatus,
+  CarStatus,
+  Prisma,
+} from "@prisma/client";
 import { prisma } from "../../lib/prisma";
-import { ForbiddenError, NotFoundError, ValidationError } from "../../lib/errors";
+import {
+  ForbiddenError,
+  NotFoundError,
+  ValidationError,
+} from "../../lib/errors";
 import type {
   CreateOnlineBookingInput,
   CreateWalkInBookingInput,
@@ -14,7 +23,11 @@ const bookingInclude = {
   car: {
     include: {
       brand: true,
-      images: { orderBy: { position: "asc" as const } },
+      images: {
+        orderBy: {
+          position: "asc" as const,
+        },
+      },
       shop: {
         select: {
           id: true,
@@ -42,8 +55,12 @@ const bookingInclude = {
   },
 } satisfies Prisma.BookingInclude;
 
-function decimalToNumber(value: Prisma.Decimal | null) {
-  return value === null ? null : Number(value);
+function decimalToNumber(
+  value: Prisma.Decimal | null,
+) {
+  return value === null
+    ? null
+    : Number(value);
 }
 
 function serializeBooking<
@@ -57,25 +74,49 @@ function serializeBooking<
 >(booking: T) {
   return {
     ...booking,
-    totalPrice: decimalToNumber(booking.totalPrice)!,
+    totalPrice:
+      decimalToNumber(
+        booking.totalPrice,
+      )!,
     car: {
       ...booking.car,
-      pricePerDay: decimalToNumber(booking.car.pricePerDay)!,
-      extraFees: decimalToNumber(booking.car.extraFees),
+      pricePerDay:
+        decimalToNumber(
+          booking.car.pricePerDay,
+        )!,
+      extraFees: decimalToNumber(
+        booking.car.extraFees,
+      ),
     },
   };
 }
 
-function calculateRentalDays(startDate: Date, endDate: Date) {
-  return Math.ceil((endDate.getTime() - startDate.getTime()) / MS_PER_DAY);
+function calculateRentalDays(
+  startDate: Date,
+  endDate: Date,
+) {
+  return Math.ceil(
+    (endDate.getTime() -
+      startDate.getTime()) /
+      MS_PER_DAY,
+  );
 }
 
-async function getCarForBooking(carId: string) {
+async function getCarForBooking(
+  carId: string,
+) {
   const car = await prisma.car.findFirst({
     where: {
       id: carId,
-      shop: { status: "ACTIVE" },
-      status: { notIn: [CarStatus.MAINTENANCE, CarStatus.INACTIVE] },
+      shop: {
+        status: "ACTIVE",
+      },
+      status: {
+        notIn: [
+          CarStatus.MAINTENANCE,
+          CarStatus.INACTIVE,
+        ],
+      },
     },
     include: {
       shop: true,
@@ -83,36 +124,69 @@ async function getCarForBooking(carId: string) {
   });
 
   if (!car) {
-    throw new NotFoundError("Car not found");
+    throw new NotFoundError(
+      "Car not found",
+    );
   }
 
   return car;
 }
 
-async function assertNoOverlap(carId: string, startDate: Date, endDate: Date, excludeBookingId?: string) {
-  const conflict = await prisma.booking.findFirst({
-    where: {
-      carId,
-      ...(excludeBookingId ? { id: { not: excludeBookingId } } : {}),
-      status: { in: [BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.ACTIVE] },
-      startDate: { lt: endDate },
-      endDate: { gt: startDate },
-    },
-  });
+async function assertNoOverlap(
+  carId: string,
+  startDate: Date,
+  endDate: Date,
+  excludeBookingId?: string,
+) {
+  const conflict =
+    await prisma.booking.findFirst({
+      where: {
+        carId,
+        ...(excludeBookingId
+          ? {
+              id: {
+                not: excludeBookingId,
+              },
+            }
+          : {}),
+        status: {
+          in: [
+            BookingStatus.PENDING,
+            BookingStatus.CONFIRMED,
+            BookingStatus.ACTIVE,
+          ],
+        },
+        startDate: {
+          lt: endDate,
+        },
+        endDate: {
+          gt: startDate,
+        },
+      },
+    });
 
   if (conflict) {
     throw new ValidationError([
-      { field: "startDate", message: "Car is already booked for the selected dates" },
+      {
+        field: "startDate",
+        message:
+          "Car is already booked for the selected dates",
+      },
     ]);
   }
 }
 
-function assertMinRentalDays(minRentalDays: number, actualDays: number) {
+function assertMinRentalDays(
+  minRentalDays: number,
+  actualDays: number,
+) {
   if (actualDays < minRentalDays) {
     throw new ValidationError([
       {
         field: "endDate",
-        message: `Booking must be at least ${minRentalDays} day${minRentalDays === 1 ? "" : "s"}`,
+        message: `Booking must be at least ${minRentalDays} day${
+          minRentalDays === 1 ? "" : "s"
+        }`,
       },
     ]);
   }
@@ -123,56 +197,113 @@ function calculateTotalPrice(
   pricePerDay: Prisma.Decimal,
   extraFees: Prisma.Decimal | null,
 ) {
-  return Number(pricePerDay) * rentalDays + Number(extraFees ?? 0);
+  return (
+    Number(pricePerDay) *
+      rentalDays +
+    Number(extraFees ?? 0)
+  );
 }
 
-async function recomputeCarStatus(tx: Prisma.TransactionClient, carId: string) {
-  const car = await tx.car.findUnique({ where: { id: carId } });
-  if (!car || car.status === CarStatus.INACTIVE || car.status === CarStatus.MAINTENANCE) {
+async function recomputeCarStatus(
+  tx: Prisma.TransactionClient,
+  carId: string,
+) {
+  const car =
+    await tx.car.findUnique({
+      where: {
+        id: carId,
+      },
+    });
+
+  if (
+    !car ||
+    car.status ===
+      CarStatus.INACTIVE ||
+    car.status ===
+      CarStatus.MAINTENANCE
+  ) {
     return;
   }
 
-  const hasActiveBooking = await tx.booking.findFirst({
-    where: {
-      carId,
-      status: BookingStatus.ACTIVE,
-    },
-    select: { id: true },
-  });
+  const hasActiveBooking =
+    await tx.booking.findFirst({
+      where: {
+        carId,
+        status:
+          BookingStatus.ACTIVE,
+      },
+      select: {
+        id: true,
+      },
+    });
 
   await tx.car.update({
-    where: { id: carId },
-    data: { status: hasActiveBooking ? CarStatus.RENTED : CarStatus.AVAILABLE },
+    where: {
+      id: carId,
+    },
+    data: {
+      status: hasActiveBooking
+        ? CarStatus.RENTED
+        : CarStatus.AVAILABLE,
+    },
   });
 }
 
-export async function createOnlineBooking(userId: string, input: CreateOnlineBookingInput) {
-  const car = await getCarForBooking(input.carId);
+export async function createOnlineBooking(
+  userId: string,
+  input: CreateOnlineBookingInput,
+) {
+  const car = await getCarForBooking(
+    input.carId,
+  );
 
   if (!car.isBookableOnline) {
-    throw new ForbiddenError("This car is not available for online booking");
+    throw new ForbiddenError(
+      "This car is not available for online booking",
+    );
   }
 
-  const rentalDays = calculateRentalDays(input.startDate, input.endDate);
-  assertMinRentalDays(car.minRentalDays, rentalDays);
-  await assertNoOverlap(car.id, input.startDate, input.endDate);
+  const rentalDays =
+    calculateRentalDays(
+      input.startDate,
+      input.endDate,
+    );
 
-  const totalPrice = calculateTotalPrice(rentalDays, car.pricePerDay, car.extraFees);
+  assertMinRentalDays(
+    car.minRentalDays,
+    rentalDays,
+  );
 
-  const booking = await prisma.booking.create({
-    data: {
-      carId: car.id,
-      shopId: car.shopId,
-      renterUserId: userId,
-      startDate: input.startDate,
-      endDate: input.endDate,
-      totalPrice,
-      status: BookingStatus.PENDING,
-      source: BookingSource.ONLINE,
-      createdByUserId: userId,
-    },
-    include: bookingInclude,
-  });
+  await assertNoOverlap(
+    car.id,
+    input.startDate,
+    input.endDate,
+  );
+
+  const totalPrice =
+    calculateTotalPrice(
+      rentalDays,
+      car.pricePerDay,
+      car.extraFees,
+    );
+
+  const booking =
+    await prisma.booking.create({
+      data: {
+        carId: car.id,
+        shopId: car.shopId,
+        renterUserId: userId,
+        startDate: input.startDate,
+        endDate: input.endDate,
+        totalPrice,
+        status:
+          BookingStatus.PENDING,
+        source:
+          BookingSource.ONLINE,
+        createdByUserId: userId,
+      },
+      include: bookingInclude,
+    });
 
   return serializeBooking(booking);
 }
@@ -182,92 +313,243 @@ export async function createWalkInBooking(
   shopId: string,
   input: CreateWalkInBookingInput,
 ) {
-  const car = await getCarForBooking(input.carId);
+  const car = await getCarForBooking(
+    input.carId,
+  );
+
   if (car.shopId !== shopId) {
-    throw new NotFoundError("Car not found");
+    throw new NotFoundError(
+      "Car not found",
+    );
   }
 
-  const rentalDays = calculateRentalDays(input.startDate, input.endDate);
-  assertMinRentalDays(car.minRentalDays, rentalDays);
-  await assertNoOverlap(car.id, input.startDate, input.endDate);
+  const rentalDays =
+    calculateRentalDays(
+      input.startDate,
+      input.endDate,
+    );
 
-  const totalPrice = calculateTotalPrice(rentalDays, car.pricePerDay, car.extraFees);
+  assertMinRentalDays(
+    car.minRentalDays,
+    rentalDays,
+  );
 
-  const booking = await prisma.booking.create({
-    data: {
-      carId: car.id,
-      shopId: car.shopId,
-      renterUserId: null,
-      walkInRenterName: input.walkInRenterName,
-      walkInRenterPhone: input.walkInRenterPhone,
-      walkInRenterLicenseNumber: input.walkInRenterLicenseNumber,
-      startDate: input.startDate,
-      endDate: input.endDate,
-      totalPrice,
-      status: BookingStatus.CONFIRMED,
-      source: BookingSource.WALK_IN,
-      createdByUserId: adminUserId,
-    },
-    include: bookingInclude,
-  });
+  await assertNoOverlap(
+    car.id,
+    input.startDate,
+    input.endDate,
+  );
+
+  const totalPrice =
+    calculateTotalPrice(
+      rentalDays,
+      car.pricePerDay,
+      car.extraFees,
+    );
+
+  const booking =
+    await prisma.booking.create({
+      data: {
+        carId: car.id,
+        shopId: car.shopId,
+        renterUserId: null,
+        walkInRenterName:
+          input.walkInRenterName,
+        walkInRenterPhone:
+          input.walkInRenterPhone,
+        walkInRenterLicenseNumber:
+          input.walkInRenterLicenseNumber,
+        startDate: input.startDate,
+        endDate: input.endDate,
+        totalPrice,
+        status:
+          BookingStatus.CONFIRMED,
+        source:
+          BookingSource.WALK_IN,
+        createdByUserId:
+          adminUserId,
+      },
+      include: bookingInclude,
+    });
 
   return serializeBooking(booking);
 }
 
-export async function listMyBookings(userId: string, query: ListBookingsQuery) {
-  const where: Prisma.BookingWhereInput = {
-    renterUserId: userId,
-    ...(query.status ? { status: query.status } : {}),
-  };
+export async function listMyBookings(
+  userId: string,
+  query: ListBookingsQuery,
+) {
+  const where: Prisma.BookingWhereInput =
+    {
+      renterUserId: userId,
+      ...(query.status
+        ? {
+            status: query.status,
+          }
+        : {}),
+    };
 
-  const [items, total] = await prisma.$transaction([
-    prisma.booking.findMany({
-      where,
-      include: bookingInclude,
-      orderBy: [{ startDate: "desc" }, { createdAt: "desc" }],
-      skip: (query.page - 1) * query.limit,
-      take: query.limit,
-    }),
-    prisma.booking.count({ where }),
-  ]);
+  const [items, total] =
+    await prisma.$transaction([
+      prisma.booking.findMany({
+        where,
+        include: bookingInclude,
+        orderBy: [
+          {
+            startDate: "desc",
+          },
+          {
+            createdAt: "desc",
+          },
+        ],
+        skip:
+          (query.page - 1) *
+          query.limit,
+        take: query.limit,
+      }),
+      prisma.booking.count({
+        where,
+      }),
+    ]);
 
   return {
-    items: items.map(serializeBooking),
+    items: items.map(
+      serializeBooking,
+    ),
     meta: {
       page: query.page,
       limit: query.limit,
       total,
-      totalPages: Math.max(1, Math.ceil(total / query.limit)),
+      totalPages: Math.max(
+        1,
+        Math.ceil(
+          total / query.limit,
+        ),
+      ),
     },
   };
 }
 
-export async function listShopBookings(shopId: string, query: ListBookingsQuery) {
-  const where: Prisma.BookingWhereInput = {
-    shopId,
-    ...(query.status ? { status: query.status } : {}),
-  };
+export async function listShopBookings(
+  shopId: string,
+  query: ListBookingsQuery,
+) {
+  const where: Prisma.BookingWhereInput =
+    {
+      shopId,
+      ...(query.status
+        ? {
+            status: query.status,
+          }
+        : {}),
+    };
 
-  const [items, total] = await prisma.$transaction([
-    prisma.booking.findMany({
-      where,
-      include: bookingInclude,
-      orderBy: [{ startDate: "desc" }, { createdAt: "desc" }],
-      skip: (query.page - 1) * query.limit,
-      take: query.limit,
-    }),
-    prisma.booking.count({ where }),
-  ]);
+  const [items, total] =
+    await prisma.$transaction([
+      prisma.booking.findMany({
+        where,
+        include: bookingInclude,
+        orderBy: [
+          {
+            startDate: "desc",
+          },
+          {
+            createdAt: "desc",
+          },
+        ],
+        skip:
+          (query.page - 1) *
+          query.limit,
+        take: query.limit,
+      }),
+      prisma.booking.count({
+        where,
+      }),
+    ]);
 
   return {
-    items: items.map(serializeBooking),
+    items: items.map(
+      serializeBooking,
+    ),
     meta: {
       page: query.page,
       limit: query.limit,
       total,
-      totalPages: Math.max(1, Math.ceil(total / query.limit)),
+      totalPages: Math.max(
+        1,
+        Math.ceil(
+          total / query.limit,
+        ),
+      ),
     },
   };
+}
+
+export async function cancelMyBooking(
+  userId: string,
+  bookingId: string,
+) {
+  const existing =
+    await prisma.booking.findFirst({
+      where: {
+        id: bookingId,
+        renterUserId: userId,
+        source:
+          BookingSource.ONLINE,
+      },
+    });
+
+  if (!existing) {
+    throw new NotFoundError(
+      "Booking not found",
+    );
+  }
+
+  const cancellableStatuses:
+    BookingStatus[] = [
+    BookingStatus.PENDING,
+    BookingStatus.CONFIRMED,
+  ];
+
+  if (
+    !cancellableStatuses.includes(
+      existing.status,
+    )
+  ) {
+    throw new ValidationError([
+      {
+        field: "status",
+        message:
+          "Only pending or confirmed bookings can be cancelled",
+      },
+    ]);
+  }
+
+  const booking =
+    await prisma.$transaction(
+      async (tx) => {
+        const updated =
+          await tx.booking.update({
+            where: {
+              id: existing.id,
+            },
+            data: {
+              status:
+                BookingStatus.CANCELLED,
+            },
+            include: bookingInclude,
+          });
+
+        await recomputeCarStatus(
+          tx,
+          existing.carId,
+        );
+
+        return updated;
+      },
+    );
+
+  return serializeBooking(booking);
 }
 
 export async function updateBookingStatus(
@@ -275,25 +557,42 @@ export async function updateBookingStatus(
   bookingId: string,
   input: UpdateBookingStatusInput,
 ) {
-  const existing = await prisma.booking.findFirst({
-    where: { id: bookingId, shopId },
-  });
-
-  if (!existing) {
-    throw new NotFoundError("Booking not found");
-  }
-
-  const booking = await prisma.$transaction(async (tx) => {
-    const updated = await tx.booking.update({
-      where: { id: bookingId },
-      data: { status: input.status },
-      include: bookingInclude,
+  const existing =
+    await prisma.booking.findFirst({
+      where: {
+        id: bookingId,
+        shopId,
+      },
     });
 
-    await recomputeCarStatus(tx, existing.carId);
+  if (!existing) {
+    throw new NotFoundError(
+      "Booking not found",
+    );
+  }
 
-    return updated;
-  });
+  const booking =
+    await prisma.$transaction(
+      async (tx) => {
+        const updated =
+          await tx.booking.update({
+            where: {
+              id: bookingId,
+            },
+            data: {
+              status: input.status,
+            },
+            include: bookingInclude,
+          });
+
+        await recomputeCarStatus(
+          tx,
+          existing.carId,
+        );
+
+        return updated;
+      },
+    );
 
   return serializeBooking(booking);
 }

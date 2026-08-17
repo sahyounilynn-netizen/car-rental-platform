@@ -5,7 +5,7 @@ export function ProtectedRoute() {
   const { session } = useSession();
 
   if (!session.user) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/auth" replace />;
   }
 
   return <Outlet />;

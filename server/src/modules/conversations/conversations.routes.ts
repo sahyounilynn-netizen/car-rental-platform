@@ -39,6 +39,7 @@ conversationsRouter.get(
 conversationsRouter.get(
   "/:conversationId",
   authenticate,
+  requireRole("USER", "ADMIN"),
   validateParams(conversationIdParamsSchema),
   asyncHandler(conversationsController.getConversationById),
 );
@@ -46,6 +47,7 @@ conversationsRouter.get(
 conversationsRouter.post(
   "/:conversationId/messages",
   authenticate,
+  requireRole("USER", "ADMIN"),
   validateParams(conversationIdParamsSchema),
   validateBody(sendMessageSchema),
   asyncHandler(conversationsController.sendMessage),
@@ -54,7 +56,7 @@ conversationsRouter.post(
 conversationsRouter.patch(
   "/:conversationId/read",
   authenticate,
+  requireRole("USER", "ADMIN"),
   validateParams(conversationIdParamsSchema),
   asyncHandler(conversationsController.markConversationRead),
 );
-

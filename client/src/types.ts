@@ -1,10 +1,26 @@
-export type Role = "SUPERADMIN" | "ADMIN" | "USER";
+export type Role =
+  | "SUPERADMIN"
+  | "ADMIN"
+  | "USER";
+
+export type UserStatus =
+  | "ACTIVE"
+  | "SUSPENDED";
+
+export type ShopStatus =
+  | "ACTIVE"
+  | "SUSPENDED";
 
 export interface Shop {
   id: string;
   name: string;
-  status: string;
+  status: ShopStatus;
   logoUrl?: string | null;
+  description?: string | null;
+  address?: string | null;
+  phone?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface User {
@@ -13,8 +29,68 @@ export interface User {
   email: string;
   phone?: string | null;
   role: Role;
-  status?: string;
+  status?: UserStatus;
   shop?: Shop | null;
+}
+
+export interface AdminSummary {
+  users: number;
+  admins: number;
+  shops: number;
+  cars: number;
+  bookings: number;
+}
+
+export interface AdminUserRecord {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string | null;
+  role: Exclude<Role, "SUPERADMIN">;
+  status: UserStatus;
+  createdAt: string;
+  shop: Pick<
+    Shop,
+    "id" | "name" | "status"
+  > | null;
+}
+
+export interface AdminShopRecord {
+  id: string;
+  name: string;
+  status: ShopStatus;
+  address?: string | null;
+  phone?: string | null;
+  createdAt: string;
+  owner: {
+    id: string;
+    name: string;
+    email: string;
+    status: UserStatus;
+  };
+  carCount: number;
+  bookingCount: number;
+}
+
+export interface AuditLogActor {
+  id: string;
+  name: string;
+  email: string;
+  role: Role;
+}
+
+export interface AuditLogRecord {
+  id: string;
+  actorId: string;
+  action: string;
+  targetType: string;
+  targetId: string;
+  metadata?: Record<
+    string,
+    unknown
+  > | null;
+  createdAt: string;
+  actor: AuditLogActor;
 }
 
 export interface Brand {
@@ -63,7 +139,9 @@ export interface Booking {
   renterUserId?: string | null;
   walkInRenterName?: string | null;
   walkInRenterPhone?: string | null;
-  walkInRenterLicenseNumber?: string | null;
+  walkInRenterLicenseNumber?:
+    | string
+    | null;
   startDate: string;
   endDate: string;
   totalPrice: number;
@@ -73,8 +151,14 @@ export interface Booking {
   createdAt: string;
   updatedAt: string;
   car: Car;
-  renterUser?: Pick<User, "id" | "name" | "email" | "phone"> | null;
-  createdBy: Pick<User, "id" | "name" | "email" | "role">;
+  renterUser?: Pick<
+    User,
+    "id" | "name" | "email" | "phone"
+  > | null;
+  createdBy: Pick<
+    User,
+    "id" | "name" | "email" | "role"
+  >;
 }
 
 export interface Message {
@@ -84,7 +168,10 @@ export interface Message {
   body: string;
   readAt?: string | null;
   createdAt: string;
-  sender: Pick<User, "id" | "name" | "email" | "role">;
+  sender: Pick<
+    User,
+    "id" | "name" | "email" | "role"
+  >;
 }
 
 export interface Conversation {
@@ -93,7 +180,10 @@ export interface Conversation {
   shopId: string;
   createdAt: string;
   updatedAt: string;
-  user: Pick<User, "id" | "name" | "email" | "phone">;
+  user: Pick<
+    User,
+    "id" | "name" | "email" | "phone"
+  >;
   shop: Shop;
   messages: Message[];
 }

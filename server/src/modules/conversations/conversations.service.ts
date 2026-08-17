@@ -41,6 +41,10 @@ async function getConversationForActor(
   conversationId: string,
   actor: { id: string; role: Role; shopId?: string },
 ) {
+  if (actor.role !== "USER" && actor.role !== "ADMIN") {
+    throw new ForbiddenError("You do not have permission to access conversations");
+  }
+
   const conversation = await prisma.conversation.findUnique({
     where: { id: conversationId },
     include: conversationInclude,
@@ -55,7 +59,7 @@ async function getConversationForActor(
       ? conversation.userId === actor.id
       : actor.role === "ADMIN"
         ? conversation.shopId === actor.shopId
-        : true;
+        : false;
 
   if (!isParticipant) {
     throw new NotFoundError("Conversation not found");

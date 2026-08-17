@@ -405,7 +405,7 @@ export function BrowsePage() {
           </CardHeader>
           <CardContent>
             <p className="text-3xl font-semibold">{conversationsQuery.data?.length ?? 0}</p>
-            <p className="text-sm text-muted-foreground">Shared inbox for renters and shop admins.</p>
+            <p className="text-sm text-muted-foreground">Private conversation threads between customers and rental shops.</p>
           </CardContent>
         </Card>
       </div>
