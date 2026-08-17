@@ -1,3 +1,4 @@
+import "express";
 import { createApp } from "./createApp";
 
 const app = createApp();
