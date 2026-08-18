@@ -1,4 +1,4 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "npm run prisma:deploy --workspace server && npm run build --workspace server"
+  "buildCommand": "if [ -n \"$DATABASE_URL\" ]; then npm run prisma:deploy --workspace server && npm run build --workspace server; else npm run build --workspace client; fi"
 }
