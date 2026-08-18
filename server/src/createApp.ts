@@ -20,6 +20,8 @@ import { usersRouter } from "./modules/users/users.routes";
 export function createApp() {
   const app = express();
 
+  app.set("trust proxy", 1);
+
   app.use(helmet());
   app.use(
     cors({
@@ -33,6 +35,13 @@ export function createApp() {
   app.use(hpp());
   app.use(pinoHttp({ logger }));
   app.use(generalLimiter);
+
+  app.get("/", (_req, res) => {
+    res.status(200).json({
+      status: "ok",
+      message: "Car Rental API is running",
+    });
+  });
 
   app.get("/api/health", (_req, res) => {
     res.json({ status: "ok" });
